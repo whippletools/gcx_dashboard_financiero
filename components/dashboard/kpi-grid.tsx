@@ -52,21 +52,6 @@ export function KPIGrid({ data, onKPIClick }: KPIGridProps) {
       value: formatCurrency(data.totalFinancing),
       key: "financing",
     },
-    {
-      title: "Anticipos otorgados",
-      value: formatCurrency(data.totalAdvance),
-      key: "advance",
-    },
-    {
-      title: "Tiempo promedio de cobranza",
-      value: Math.round(data.avgDays).toString(),
-      key: "avgDays",
-    },
-    {
-      title: "Tasa de recuperación",
-      value: formatPercentage(100 - data.overduePercentage),
-      key: "efficiency",
-    },
   ]
 
   return (

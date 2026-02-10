@@ -13,8 +13,8 @@ export function ChartSection({ data }: ChartSectionProps) {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Tendencias</CardTitle>
-          <CardDescription>Evolución temporal de indicadores clave</CardDescription>
+          <CardTitle>Facturación Mensual 2025 vs 2024</CardTitle>
+          <CardDescription>Comparativa de facturación mensual entre el año actual y el anterior</CardDescription>
         </CardHeader>
         <CardContent>
           <CollectionTrendChart data={data} detailed />

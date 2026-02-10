@@ -10,56 +10,44 @@ interface CollectionTrendChartProps {
 
 export function CollectionTrendChart({ data, detailed = false }: CollectionTrendChartProps) {
   const processData = () => {
-    const monthlyData = data.reduce(
-      (acc, item) => {
-        if (!item.Fecha) return acc
+    const monthlyTotals: Record<string, { [year: number]: number }> = {}
 
-        const date = new Date(item.Fecha)
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+    data.forEach((item) => {
+      if (!item.Fecha || !item.Total) return
 
-        if (!acc[monthKey]) {
-          acc[monthKey] = {
-            month: monthKey,
-            total: 0,
-            overdue: 0,
-            financing: 0,
-            advance: 0,
-            count: 0,
-          }
+      const date = new Date(item.Fecha)
+      const year = date.getFullYear()
+      const month = date.getMonth() 
+
+      if (year === 2024 || year === 2025) {
+        if (!monthlyTotals[month]) {
+          monthlyTotals[month] = {}
         }
+        if (!monthlyTotals[month][year]) {
+          monthlyTotals[month][year] = 0
+        }
+        monthlyTotals[month][year] += item.Total
+      }
+    })
 
-        acc[monthKey].total += item.Total || 0
-        acc[monthKey].overdue += item.Vencido || 0
-        acc[monthKey].financing += item.FINANCIAMIENTO || 0
-        acc[monthKey].advance += item.ANTICIPO || 0
-        acc[monthKey].count += 1
+    const monthNames = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"]
+    
+    const chartData = monthNames.map((name, index) => ({
+      month: name,
+      "2025": monthlyTotals[index]?.[2025] || 0,
+      "2024": monthlyTotals[index]?.[2024] || 0,
+    }))
 
-        return acc
-      },
-      {} as Record<string, any>,
-    )
-
-    return Object.values(monthlyData)
-      .sort((a: any, b: any) => a.month.localeCompare(b.month))
-      .slice(-12) // Last 12 months
-      .map((item: any) => ({
-        ...item,
-        month: new Date(item.month + "-01").toLocaleDateString("es-MX", {
-          month: "short",
-          year: "2-digit",
-        }),
-      }))
+    return chartData
   }
 
   const chartData = processData()
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
+    if (value >= 1000) {
+      return `$${(value / 1000).toLocaleString("es-MX")} mil`
+    }
+    return `$${value.toLocaleString("es-MX")}`
   }
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -87,46 +75,26 @@ export function CollectionTrendChart({ data, detailed = false }: CollectionTrend
           <YAxis
             className="text-muted-foreground"
             fontSize={12}
-            tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
+            tickFormatter={formatCurrency}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend />
           <Line
             type="monotone"
-            dataKey="total"
-            stroke="var(--trend-line)" // Green color for trend line
+            dataKey="2025"
+            stroke="#3b82f6" // light blue
             strokeWidth={2}
-            name="Total"
-            dot={{ fill: "var(--trend-points)" }} // Blue points
+            name="Año Actual"
+            dot={{ fill: "#3b82f6" }}
           />
           <Line
             type="monotone"
-            dataKey="overdue"
-            stroke="var(--overdue-color)" // Red for overdue amounts
+            dataKey="2024"
+            stroke="#1e3a8a" // dark blue
             strokeWidth={2}
-            name="Vencido"
-            dot={{ fill: "var(--overdue-color)" }}
+            name="Año Anterior"
+            dot={{ fill: "#1e3a8a" }}
           />
-          {detailed && (
-            <>
-              <Line
-                type="monotone"
-                dataKey="financing"
-                stroke="var(--chart-4)" // Amber for financing
-                strokeWidth={2}
-                name="Financiamiento"
-                dot={{ fill: "var(--chart-4)" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="advance"
-                stroke="var(--chart-1)" // Blue for advances
-                strokeWidth={2}
-                name="Anticipos"
-                dot={{ fill: "var(--chart-1)" }}
-              />
-            </>
-          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
