@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { PieChart, TrendingUp, Users, FileText, Menu, Home, CreditCard, DollarSign } from "lucide-react"
+import { PieChart, Menu, Home, CreditCard, DollarSign } from "lucide-react"
 
 const navigation = [
   {
@@ -29,16 +29,6 @@ const navigation = [
     name: "Financiamiento",
     href: "/financing",
     icon: DollarSign,
-  },
-  {
-    name: "Indicadores",
-    href: "/indicators",
-    icon: TrendingUp,
-  },
-  {
-    name: "Clientes",
-    href: "/clients",
-    icon: Users,
   },
   /*{
     name: "Reportes",
