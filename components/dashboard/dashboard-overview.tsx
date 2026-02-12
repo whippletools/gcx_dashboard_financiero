@@ -1,99 +1,133 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KPIGrid } from "./kpi-grid"
-import { ChartSection } from "./chart-section"
-import { PortfolioAging } from "./portfolio-aging"
 import { DashboardSkeleton } from "./dashboard-skeleton"
-
-interface KPIData {
-  totalAmount: number
-  totalOverdue: number
-  totalFinancing: number
-  totalAdvance: number
-  avgDays: number
-  overduePercentage: number
-}
-
-interface CobranzaRecord {
-  id: string
-  cliente: string
-  monto: number
-  fecha_vencimiento: string
-  estado: string
-  dias_vencido: number
-  tipo_operacion: string
-  garantia: string
-  [key: string]: any
-}
-
-interface AgingData {
-  rango: string
-  monto: number
-  porcentaje: number
-  color: string
-}
+import { CollectionTrendChart } from "@/components/charts/CollectionTrendChart"
+import { AgingAnalysis } from "@/components/charts/AgingAnalysis"
+import { PortfolioTrendChart } from "@/components/charts/PortfolioTrendChart"
+import { FinancingTrendChart } from "@/components/charts/FinancingTrendChart"
+import { OfficeSummaryTable } from "@/components/tables/OfficeSummaryTable"
+import { GuaranteeStatusTable } from "@/components/tables/GuaranteeStatusTable"
+import { GuaranteeTrendChart } from "@/components/charts/GuaranteeTrendChart"
+import { BillingChart } from "@/components/charts/BillingChart"
+import { useCollectionTrend, useAgingData, usePortfolioTrend, useFinancingTrend, useOfficeSummary, useGuaranteeStatus, useGuaranteeTrend } from "@/hooks"
 
 export function DashboardOverview() {
-  const [kpiData, setKpiData] = useState<KPIData | null>(null)
-  const [cobranzaData, setCobranzaData] = useState<CobranzaRecord[]>([])
-  const [agingData, setAgingData] = useState<AgingData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [selectedYear, setSelectedYear] = useState(2024)
+  const [selectedOffice, setSelectedOffice] = useState<string | undefined>(undefined)
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [kpiResponse, cobranzaResponse, agingResponse] = await Promise.all([
-          fetch("/api/dashboard/kpis"),
-          fetch("/api/dashboard/cobranza"),
-          fetch("/api/dashboard/aging"),
-        ])
+  // Hooks para datos
+  const { data: collectionData, isLoading: isLoadingCollection } = useCollectionTrend({ year: selectedYear, idEmpresa: 1 })
+  const { data: agingData, isLoading: isLoadingAging } = useAgingData({ fechaCorte: '2024-12-31', idEmpresa: 1 })
+  const { data: portfolioData, isLoading: isLoadingPortfolio } = usePortfolioTrend({ year: selectedYear, idEmpresa: 1 })
+  const { data: financingData, isLoading: isLoadingFinancing } = useFinancingTrend({ year: selectedYear, idEmpresa: 1, officeId: selectedOffice })
+  const { data: officeSummaryData, isLoading: isLoadingOffices } = useOfficeSummary({ fechaCorte: '2024-12-31', idEmpresa: 1 })
+  const { data: guaranteeStatusData, isLoading: isLoadingGuaranteeStatus } = useGuaranteeStatus({ year: selectedYear, idEmpresa: 1 })
+  const { data: guaranteeTrendData, isLoading: isLoadingGuaranteeTrend } = useGuaranteeTrend({ year: selectedYear, idEmpresa: 1 })
 
-        if (!kpiResponse.ok || !cobranzaResponse.ok || !agingResponse.ok) {
-          throw new Error("Failed to fetch dashboard data")
-        }
+  const isLoading = isLoadingCollection || isLoadingAging || isLoadingPortfolio || isLoadingFinancing || 
+                    isLoadingOffices || isLoadingGuaranteeStatus || isLoadingGuaranteeTrend
 
-        const kpiResult = await kpiResponse.json()
-        const cobranzaResult = await cobranzaResponse.json()
-        const agingResult = await agingResponse.json()
-
-        if (kpiResult.error || cobranzaResult.error || agingResult.error) {
-          throw new Error(kpiResult.error || cobranzaResult.error || agingResult.error)
-        }
-
-        setKpiData(kpiResult)
-        setCobranzaData(cobranzaResult)
-        setAgingData(agingResult)
-      } catch (err) {
-        console.error("[v0] Error loading dashboard data:", err)
-        setError("Error loading dashboard data")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [])
-
-  const handleKPIClick = (kpi: string) => {
-    console.log(`[v0] KPI clicked: ${kpi}`)
-    // TODO: Implement drill-down functionality
-  }
-
-  if (loading) {
+  if (isLoading) {
     return <DashboardSkeleton />
-  }
-
-  if (error || !kpiData) {
-    return <div className="text-center text-red-500 p-4">{error || "Error loading dashboard data"}</div>
   }
 
   return (
     <div className="space-y-6">
-      <KPIGrid data={kpiData} onKPIClick={handleKPIClick} />
-      <ChartSection data={cobranzaData} />
-      <PortfolioAging data={agingData} />
+      {/* Year Selector */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <label className="text-body-medium text-on-surface-variant">Año:</label>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="px-3 py-2 bg-surface-container rounded-lg border border-outline-variant text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value={2024}>2024</option>
+            <option value={2023}>2023</option>
+            <option value={2022}>2022</option>
+          </select>
+        </div>
+      </div>
+
+      <Tabs defaultValue="cobranza" className="w-full">
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+          <TabsTrigger value="cobranza">Cobranza</TabsTrigger>
+          <TabsTrigger value="cartera">Cartera</TabsTrigger>
+          <TabsTrigger value="financiamiento">Financiamiento</TabsTrigger>
+          <TabsTrigger value="oficinas">Oficinas</TabsTrigger>
+          <TabsTrigger value="garantias">Garantías</TabsTrigger>
+          <TabsTrigger value="facturacion">Facturación</TabsTrigger>
+        </TabsList>
+
+        {/* Tab: Cobranza */}
+        <TabsContent value="cobranza" className="space-y-6">
+          <div className="grid gap-6">
+            {collectionData && (
+              <CollectionTrendChart data={collectionData} />
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Tab: Cartera */}
+        <TabsContent value="cartera" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-1">
+            {agingData && (
+              <AgingAnalysis data={agingData} />
+            )}
+            {portfolioData && (
+              <PortfolioTrendChart data={portfolioData} />
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Tab: Financiamiento */}
+        <TabsContent value="financiamiento" className="space-y-6">
+          <div className="grid gap-6">
+            {financingData && (
+              <FinancingTrendChart 
+                data={financingData} 
+                onOfficeChange={setSelectedOffice}
+              />
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Tab: Oficinas */}
+        <TabsContent value="oficinas" className="space-y-6">
+          <div className="grid gap-6">
+            {officeSummaryData && (
+              <OfficeSummaryTable data={officeSummaryData} />
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Tab: Garantías */}
+        <TabsContent value="garantias" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-1">
+            {guaranteeStatusData && (
+              <GuaranteeStatusTable data={guaranteeStatusData} />
+            )}
+            {guaranteeTrendData && (
+              <GuaranteeTrendChart data={guaranteeTrendData} />
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Tab: Facturación */}
+        <TabsContent value="facturacion" className="space-y-6">
+          <div className="grid gap-6">
+            <BillingChart 
+              data={{ 
+                aduanas: [], 
+                months: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'] 
+              }} 
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
