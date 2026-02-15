@@ -1,9 +1,9 @@
 // app/api/tendencia-cobrado/route.ts
 // API Route para US-001: Tendencia Cobrado con comparativo año pasado
-// GET /api/tendencia-cobrado?year=2024&idEmpresa=1
+// GET /api/tendencia-cobrado?year=2026&idEmpresa=1
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery, DASHBOARD_QUERIES } from '@/lib/reco-api';
+import { executeQuery } from '@/lib/reco-api';
 import { CollectionTrendData, MonthlyCollectionData } from '@/types/dashboard';
 import { formatMonthName } from '@/lib/utils/formatters';
 
@@ -41,29 +41,45 @@ export async function GET(request: NextRequest) {
 
 /**
  * Obtiene datos mensuales de cobrado para un año específico usando API RECO
+ * Usa CROSS APPLY con fn_CGA_Cobrados(FechaIni, FechaFin, IdEmpresa)
  */
 async function fetchYearData(
   year: number,
   idEmpresa: number
 ): Promise<MonthlyCollectionData[]> {
-  const months: MonthlyCollectionData[] = [];
-
-  // Query para tendencia de cobrado por mes
+  // Query con CTE de meses + CROSS APPLY a fn_CGA_Cobrados
+  // Firma real: fn_CGA_Cobrados(@dFechaIni DATE, @dFechaFin DATE, @nIdEmp11 INT)
   const query = `
+    WITH CTE_Meses AS (
+      SELECT 
+        1 AS NumeroMes,
+        DATEFROMPARTS(${year}, 1, 1) AS FechaInicioMes,
+        EOMONTH(DATEFROMPARTS(${year}, 1, 1)) AS FechaFinMes
+      UNION ALL
+      SELECT 
+        NumeroMes + 1,
+        DATEFROMPARTS(${year}, NumeroMes + 1, 1),
+        EOMONTH(DATEFROMPARTS(${year}, NumeroMes + 1, 1))
+      FROM CTE_Meses
+      WHERE NumeroMes < 12
+    )
     SELECT 
-      MONTH(FechaPago) as Mes,
-      SUM(TotalCobrado) as TotalCobrado,
-      COUNT(*) as CantidadFacturas
-    FROM dbo.fn_CGA_Cobrados(${idEmpresa}, ${year})
-    WHERE YEAR(FechaPago) = ${year}
-    GROUP BY MONTH(FechaPago)
-    ORDER BY Mes
+      m.NumeroMes AS Mes,
+      SUM(c.GastosME_Cob + c.IngresosME_Cob) AS TotalCobrado,
+      COUNT(*) AS CantidadFacturas
+    FROM CTE_Meses m
+    CROSS APPLY dbo.fn_CGA_Cobrados(m.FechaInicioMes, m.FechaFinMes, ${idEmpresa}) c
+    GROUP BY m.NumeroMes
+    ORDER BY m.NumeroMes
+    OPTION (MAXRECURSION 12)
   `;
 
   const result = await executeQuery(query);
 
+  const months: MonthlyCollectionData[] = [];
+
   if (!result.success || !result.data) {
-    console.warn(`Error fetching data for ${year}:`, result.error);
+    console.warn(`Error fetching cobrado data for ${year}:`, result.error);
     // Generar meses vacíos en caso de error
     for (let month = 1; month <= 12; month++) {
       months.push({
@@ -78,13 +94,13 @@ async function fetchYearData(
   }
 
   // Mapear resultados de la BD a la estructura esperada
-  const dataMap = new Map();
+  const dataMap = new Map<number, { totalCollected: number; invoiceCount: number }>();
   result.data.forEach((row: any) => {
-    const mes = row.Mes || row.mes || row.MONTH || row.month;
+    const mes = row.Mes || row.mes;
     if (mes) {
       dataMap.set(mes, {
-        totalCollected: row.TotalCobrado || row.totalCobrado || row.TOTALCOBRADO || 0,
-        invoiceCount: row.CantidadFacturas || row.cantidadFacturas || row.CANTIDADFACTURAS || 0,
+        totalCollected: row.TotalCobrado || 0,
+        invoiceCount: row.CantidadFacturas || 0,
       });
     }
   });

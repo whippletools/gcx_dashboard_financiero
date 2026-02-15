@@ -1,6 +1,6 @@
 // app/api/garantias/estatus/route.ts
 // API Route para US-005: Estatus de Garantías
-// GET /api/garantias/estatus?year=2024&idEmpresa=1
+// GET /api/garantias/estatus?year=2026&idEmpresa=1
 
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/reco-api';
@@ -8,10 +8,10 @@ import { GuaranteeStatusData, MonthGuaranteeData, GuaranteeStatusDetail, Guarant
 import { formatMonthName } from '@/lib/utils/formatters';
 
 // Mapeo de códigos de estatus a nombres
-const STATUS_MAP: Record<number, GuaranteeStatus> = {
-  1: 'Programadas',
-  2: 'Naviera',
-  3: 'Operacion',
+const STATUS_MAP: Record<string, GuaranteeStatus> = {
+  'Programadas': 'Programadas',
+  'Naviera': 'Naviera',
+  'Operacion': 'Operacion',
 };
 
 export async function GET(request: NextRequest) {
@@ -27,69 +27,103 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query mensual usando API RECO
+    // Query CROSS APPLY: replica sp_Estatus_Garantia usando fn_Garantias_Estatus
+    // fn_Garantias_Estatus(@FechaIni DATE, @FechaFin DATE, @IdEmpresa INT)
+    const query = `
+      WITH CTE_Meses AS (
+        SELECT 
+          1 AS NumeroMes,
+          DATEFROMPARTS(${year}, 1, 1) AS FechaInicioMes,
+          EOMONTH(DATEFROMPARTS(${year}, 1, 1)) AS FechaFinMes
+        UNION ALL
+        SELECT 
+          NumeroMes + 1,
+          DATEFROMPARTS(${year}, NumeroMes + 1, 1),
+          EOMONTH(DATEFROMPARTS(${year}, NumeroMes + 1, 1))
+        FROM CTE_Meses
+        WHERE NumeroMes < 12
+      )
+      SELECT 
+        g.EstatusGarantia AS Estatus,
+        SUM(g.nImporte) AS ImporteMN,
+        m.NumeroMes AS MES
+      FROM CTE_Meses m
+      CROSS APPLY dbo.fn_Garantias_Estatus(m.FechaInicioMes, m.FechaFinMes, ${idEmpresa}) g
+      GROUP BY g.EstatusGarantia, m.NumeroMes
+      ORDER BY m.NumeroMes, g.EstatusGarantia
+      OPTION (MAXRECURSION 12)
+    `;
+
+    const result = await executeQuery(query);
+
     const months: MonthGuaranteeData[] = [];
     const tableDetails: GuaranteeStatusDetail[] = [];
 
-    for (let month = 1; month <= 12; month++) {
-      // Query usando sp_Estatus_Garantia
-      const query = `
-        SELECT 
-          EstatusGarantia,
-          ImporteMN,
-          COUNT(*) as Cantidad
-        FROM dbo.sp_Estatus_Garantia(${idEmpresa}, ${year}, ${month})
-        WHERE EstatusGarantia IN (1, 2, 3)
-        GROUP BY EstatusGarantia, ImporteMN
-      `;
-
-      const result = await executeQuery(query);
-
-      if (!result.success) {
-        console.warn(`Error fetching guarantee data for month ${month}:`, result.error);
+    if (!result.success || !result.data) {
+      console.warn('Error fetching garantias estatus:', result.error);
+      for (let month = 1; month <= 12; month++) {
+        months.push({
+          month,
+          monthName: formatMonthName(month),
+          scheduled: 0,
+          naviera: 0,
+          operation: 0,
+          total: 0,
+        });
       }
-
-      const validData = result.data || [];
-
-      // Calcular totales por estatus
-      const scheduled = validData
-        .filter((item) => item.EstatusGarantia === 1)
-        .reduce((sum, item) => sum + (item.ImporteMN || 0), 0);
-      
-      const naviera = validData
-        .filter((item) => item.EstatusGarantia === 2)
-        .reduce((sum, item) => sum + (item.ImporteMN || 0), 0);
-      
-      const operation = validData
-        .filter((item) => item.EstatusGarantia === 3)
-        .reduce((sum, item) => sum + (item.ImporteMN || 0), 0);
-
-      const total = scheduled + naviera + operation;
-
-      months.push({
-        month,
-        monthName: formatMonthName(month),
-        scheduled: Math.round(scheduled * 100) / 100,
-        naviera: Math.round(naviera * 100) / 100,
-        operation: Math.round(operation * 100) / 100,
-        total: Math.round(total * 100) / 100,
+    } else {
+      // Agrupar por mes
+      const monthGroups = new Map<number, any[]>();
+      result.data.forEach((row: any) => {
+        const mes = row.MES || row.Mes || row.mes;
+        if (!monthGroups.has(mes)) {
+          monthGroups.set(mes, []);
+        }
+        monthGroups.get(mes)!.push(row);
       });
 
-      // Agregar detalles por estatus para este mes
-      [1, 2, 3].forEach((statusCode) => {
-        const statusAmount = validData
-          .filter((item) => item.EstatusGarantia === statusCode)
+      for (let month = 1; month <= 12; month++) {
+        const monthData = monthGroups.get(month) || [];
+
+        const scheduled = monthData
+          .filter((item) => item.Estatus === 'Programadas')
+          .reduce((sum, item) => sum + (item.ImporteMN || 0), 0);
+        
+        const naviera = monthData
+          .filter((item) => item.Estatus === 'Naviera')
+          .reduce((sum, item) => sum + (item.ImporteMN || 0), 0);
+        
+        const operation = monthData
+          .filter((item) => item.Estatus === 'Operacion')
           .reduce((sum, item) => sum + (item.ImporteMN || 0), 0);
 
-        if (statusAmount > 0) {
-          tableDetails.push({
-            status: STATUS_MAP[statusCode],
-            amount: Math.round(statusAmount * 100) / 100,
-            month,
-            monthName: formatMonthName(month),
-          });
-        }
-      });
+        const total = scheduled + naviera + operation;
+
+        months.push({
+          month,
+          monthName: formatMonthName(month),
+          scheduled: Math.round(scheduled * 100) / 100,
+          naviera: Math.round(naviera * 100) / 100,
+          operation: Math.round(operation * 100) / 100,
+          total: Math.round(total * 100) / 100,
+        });
+
+        // Agregar detalles por estatus para este mes
+        ['Programadas', 'Naviera', 'Operacion'].forEach((statusName) => {
+          const statusAmount = monthData
+            .filter((item) => item.Estatus === statusName)
+            .reduce((sum, item) => sum + (item.ImporteMN || 0), 0);
+
+          if (statusAmount > 0) {
+            tableDetails.push({
+              status: STATUS_MAP[statusName],
+              amount: Math.round(statusAmount * 100) / 100,
+              month,
+              monthName: formatMonthName(month),
+            });
+          }
+        });
+      }
     }
 
     const response: GuaranteeStatusData = {

@@ -28,16 +28,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query usando API RECO
+    // Query usando API RECO - columnas reales de fn_CuentasPorCobrar_Excel
     const query = `
       SELECT 
-        Cliente,
+        Nombre AS Cliente,
         RFC,
-        Total,
-        Dias,
-        UD as Sucursal
+        Saldo AS Total,
+        DiasTranscurridos AS Dias,
+        NombreSucursal AS Sucursal
       FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', ${idEmpresa})
-      WHERE RFC NOT LIKE '%INTERNO%'
+      WHERE TipoCliente = 'Externo'
     `;
 
     const result = await executeQuery(query);
@@ -116,8 +116,8 @@ function calculateAgingDetails(data: any[]): AgingDetail[] {
 
   // Calcular totales por rango para cada cliente
   return Array.from(clientGroups.entries()).map(([rfc, items]) => {
-    const clientName = items[0]?.Nombre || 'Sin Nombre';
-    const branch = items[0]?.UD || 'Sin Sucursal';
+    const clientName = items[0]?.Cliente || 'Sin Nombre';
+    const branch = items[0]?.Sucursal || 'Sin Sucursal';
 
     const range1to30 = sumByRange(items, 1, 30);
     const range31to60 = sumByRange(items, 31, 60);

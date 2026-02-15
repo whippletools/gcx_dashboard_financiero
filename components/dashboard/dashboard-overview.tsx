@@ -15,15 +15,17 @@ import { BillingChart } from "@/components/charts/BillingChart"
 import { useCollectionTrend, useAgingData, usePortfolioTrend, useFinancingTrend, useOfficeSummary, useGuaranteeStatus, useGuaranteeTrend } from "@/hooks"
 
 export function DashboardOverview() {
-  const [selectedYear, setSelectedYear] = useState(2024)
+  const currentYear = new Date().getFullYear()
+  const [selectedYear, setSelectedYear] = useState(currentYear)
   const [selectedOffice, setSelectedOffice] = useState<string | undefined>(undefined)
 
   // Hooks para datos
   const { data: collectionData, isLoading: isLoadingCollection } = useCollectionTrend({ year: selectedYear, idEmpresa: 1 })
-  const { data: agingData, isLoading: isLoadingAging } = useAgingData({ fechaCorte: '2024-12-31', idEmpresa: 1 })
+  const todayStr = new Date().toISOString().split('T')[0]
+  const { data: agingData, isLoading: isLoadingAging } = useAgingData({ fechaCorte: todayStr, idEmpresa: 1 })
   const { data: portfolioData, isLoading: isLoadingPortfolio } = usePortfolioTrend({ year: selectedYear, idEmpresa: 1 })
   const { data: financingData, isLoading: isLoadingFinancing } = useFinancingTrend({ year: selectedYear, idEmpresa: 1, officeId: selectedOffice })
-  const { data: officeSummaryData, isLoading: isLoadingOffices } = useOfficeSummary({ fechaCorte: '2024-12-31', idEmpresa: 1 })
+  const { data: officeSummaryData, isLoading: isLoadingOffices } = useOfficeSummary({ fechaCorte: todayStr, idEmpresa: 1 })
   const { data: guaranteeStatusData, isLoading: isLoadingGuaranteeStatus } = useGuaranteeStatus({ year: selectedYear, idEmpresa: 1 })
   const { data: guaranteeTrendData, isLoading: isLoadingGuaranteeTrend } = useGuaranteeTrend({ year: selectedYear, idEmpresa: 1 })
 
@@ -45,9 +47,9 @@ export function DashboardOverview() {
             onChange={(e) => setSelectedYear(Number(e.target.value))}
             className="px-3 py-2 bg-surface-container rounded-lg border border-outline-variant text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value={2024}>2024</option>
-            <option value={2023}>2023</option>
-            <option value={2022}>2022</option>
+            {Array.from({ length: 5 }, (_, i) => currentYear - i).map((yr) => (
+              <option key={yr} value={yr}>{yr}</option>
+            ))}
           </select>
         </div>
       </div>

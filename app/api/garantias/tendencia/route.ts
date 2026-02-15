@@ -1,6 +1,6 @@
 // app/api/garantias/tendencia/route.ts
 // API Route para US-008: Tendencia Cartera de Garantías
-// GET /api/garantias/tendencia?year=2024&idEmpresa=1
+// GET /api/garantias/tendencia?year=2026&idEmpresa=1
 
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/reco-api';
@@ -20,72 +20,92 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query mensual usando API RECO
+    // Query CROSS APPLY: replica sp_Tendencia_cartera_Garantias
+    // fn_GarantiasPorCobrar(@FechaCorte DATE, @IdEmpresa INT)
+    // Columnas reales: sProveedor, DiasTranscurridos, Saldo, sNombreSucursal
+    const query = `
+      WITH CTE_Meses AS (
+        SELECT 
+          1 AS NumeroMes,
+          EOMONTH(DATEFROMPARTS(${year}, 1, 1)) AS FechaFinMes
+        UNION ALL
+        SELECT 
+          NumeroMes + 1,
+          EOMONTH(DATEFROMPARTS(${year}, NumeroMes + 1, 1))
+        FROM CTE_Meses
+        WHERE NumeroMes < 12
+      )
+      SELECT
+        g.sProveedor AS Nombre,
+        SUM(CASE WHEN g.DiasTranscurridos < 1 THEN g.Saldo ELSE 0 END) AS Vigente,
+        SUM(CASE WHEN g.DiasTranscurridos >= 1 THEN g.Saldo ELSE 0 END) AS Vencido,
+        SUM(g.Saldo) AS Saldo,
+        g.sNombreSucursal AS Sucursal,
+        m.NumeroMes AS Mes
+      FROM CTE_Meses m
+      CROSS APPLY dbo.fn_GarantiasPorCobrar(m.FechaFinMes, ${idEmpresa}) g
+      GROUP BY g.sProveedor, g.sNombreSucursal, m.NumeroMes
+      ORDER BY m.NumeroMes, g.sProveedor
+      OPTION (MAXRECURSION 12)
+    `;
+
+    const result = await executeQuery(query);
+
     const months: MonthGuaranteeTrend[] = [];
     const tableDetails: GuaranteeTrendDetail[] = [];
 
-    for (let month = 1; month <= 12; month++) {
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-
-      // Query usando fn_GarantiasPorCobrar
-      const query = `
-        SELECT 
-          Nombre,
-          Saldo,
-          Vencido,
-          Dias,
-          UD
-        FROM dbo.fn_GarantiasPorCobrar('${endDate}', ${idEmpresa})
-      `;
-
-      const result = await executeQuery(query);
-
-      if (!result.success) {
-        console.warn(`Error fetching guarantee trend data for month ${month}:`, result.error);
-      }
-
-      const validData = result.data || [];
-
-      // Calcular métricas del mes
-      const totalPortfolio = validData.reduce((sum, item) => sum + (item.Saldo || 0), 0);
-      const totalOverdue = validData.reduce((sum, item) => sum + (item.Vencido || 0), 0);
-      const onTime = totalPortfolio - totalOverdue;
-      const overduePercentage = totalPortfolio > 0 ? (totalOverdue / totalPortfolio) * 100 : 0;
-
-      months.push({
-        month,
-        monthName: formatMonthName(month),
-        overdue: Math.round(totalOverdue * 100) / 100,
-        onTime: Math.round(onTime * 100) / 100,
-        total: Math.round(totalPortfolio * 100) / 100,
-        overduePercentage: Math.round(overduePercentage * 100) / 100,
-      });
-
-      // Agregar detalles por proveedor para este mes
-      const providerGroups = new Map<string, any[]>();
-      validData.forEach((item) => {
-        const key = item.Nombre || 'Sin Proveedor';
-        if (!providerGroups.has(key)) {
-          providerGroups.set(key, []);
-        }
-        providerGroups.get(key)!.push(item);
-      });
-
-      Array.from(providerGroups.entries()).forEach(([providerName, items]) => {
-        const branch = items[0]?.UD || 'Sin Sucursal';
-        const providerTotal = items.reduce((sum, item) => sum + (item.Saldo || 0), 0);
-        const providerOverdue = items.reduce((sum, item) => sum + (item.Vencido || 0), 0);
-        const providerOnTime = providerTotal - providerOverdue;
-
-        tableDetails.push({
-          providerName,
-          onTime: Math.round(providerOnTime * 100) / 100,
-          overdue: Math.round(providerOverdue * 100) / 100,
-          total: Math.round(providerTotal * 100) / 100,
-          branch,
+    if (!result.success || !result.data) {
+      console.warn('Error fetching garantias tendencia:', result.error);
+      for (let month = 1; month <= 12; month++) {
+        months.push({
           month,
+          monthName: formatMonthName(month),
+          overdue: 0,
+          onTime: 0,
+          total: 0,
+          overduePercentage: 0,
         });
+      }
+    } else {
+      // Agrupar por mes
+      const monthGroups = new Map<number, any[]>();
+      result.data.forEach((row: any) => {
+        const mes = row.Mes || row.mes;
+        if (!monthGroups.has(mes)) {
+          monthGroups.set(mes, []);
+        }
+        monthGroups.get(mes)!.push(row);
       });
+
+      for (let month = 1; month <= 12; month++) {
+        const monthData = monthGroups.get(month) || [];
+
+        const totalPortfolio = monthData.reduce((sum, item) => sum + (item.Saldo || 0), 0);
+        const totalOverdue = monthData.reduce((sum, item) => sum + (item.Vencido || 0), 0);
+        const onTime = totalPortfolio - totalOverdue;
+        const overduePercentage = totalPortfolio > 0 ? (totalOverdue / totalPortfolio) * 100 : 0;
+
+        months.push({
+          month,
+          monthName: formatMonthName(month),
+          overdue: Math.round(totalOverdue * 100) / 100,
+          onTime: Math.round(onTime * 100) / 100,
+          total: Math.round(totalPortfolio * 100) / 100,
+          overduePercentage: Math.round(overduePercentage * 100) / 100,
+        });
+
+        // Detalles por proveedor
+        monthData.forEach((item: any) => {
+          tableDetails.push({
+            providerName: item.Nombre || 'Sin Proveedor',
+            onTime: Math.round((item.Vigente || 0) * 100) / 100,
+            overdue: Math.round((item.Vencido || 0) * 100) / 100,
+            total: Math.round((item.Saldo || 0) * 100) / 100,
+            branch: item.Sucursal || 'Sin Sucursal',
+            month,
+          });
+        });
+      }
     }
 
     const response: GuaranteeTrendData = {

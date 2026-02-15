@@ -19,21 +19,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query usando API RECO
+    // Query usando API RECO - columnas reales de fn_CuentasPorCobrar_Excel
     const query = `
       SELECT 
-        UD as Oficina,
-        AA as Agente,
-        Total,
+        Unidad AS Oficina,
+        Cobrador AS Agente,
+        Saldo AS Total,
         Vencido,
-        Dias,
-        [NO FACT] as NoFacturado,
-        Cobrado,
-        [TOTAL HON] as TotalHonorarios,
-        [TOTAL COMPL] as TotalComplementos,
-        RFC
+        DiasTranscurridos AS Dias,
+        PagosNetos,
+        Honorarios,
+        Complementarios,
+        RFC,
+        Nombre
       FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', ${idEmpresa})
-      WHERE RFC NOT LIKE '%INTERNO%'
+      WHERE TipoCliente = 'Externo'
     `;
 
     const result = await executeQuery(query);
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     const officeGroups = new Map<string, any[]>();
 
     validData.forEach((item) => {
-      const officeKey = item.UD || item.AA || 'Sin Oficina';
+      const officeKey = item.Oficina || item.Agente || 'Sin Oficina';
       if (!officeGroups.has(officeKey)) {
         officeGroups.set(officeKey, []);
       }
@@ -86,9 +86,9 @@ export async function GET(request: NextRequest) {
           .reduce((sum, item) => sum + (item.Total || 0), 0);
 
         const total = items.reduce((sum, item) => sum + (item.Total || 0), 0);
-        const dacBalance = items.reduce((sum, item) => sum + (item['TOTAL HON'] || 0), 0);
-        const clientBalance = items.reduce((sum, item) => sum + (item['TOTAL COMPL'] || 0), 0);
-        const collected = items.reduce((sum, item) => sum + (item.Cobrado || 0), 0);
+        const dacBalance = items.reduce((sum, item) => sum + (item.Honorarios || 0), 0);
+        const clientBalance = items.reduce((sum, item) => sum + (item.Complementarios || 0), 0);
+        const collected = items.reduce((sum, item) => sum + (item.PagosNetos || 0), 0);
         const overdue = items.reduce((sum, item) => sum + (item.Vencido || 0), 0);
 
         return {

@@ -1,6 +1,6 @@
 // app/api/tendencia-cxc/route.ts
 // API Route para US-003: Tendencia Cartera CXC (Vencido vs En tiempo)
-// GET /api/tendencia-cxc?year=2024&idEmpresa=1
+// GET /api/tendencia-cxc?year=2026&idEmpresa=1
 
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/reco-api';
@@ -20,37 +20,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query mensual usando API RECO
+    // Queries paralelas por mes - fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
+    // Usa columnas Tiempo y Vencido ya calculadas por la función (con DiasCredito)
+    const monthPromises = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const query = `
+        SELECT
+          Nombre,
+          RFC,
+          SUM(Tiempo) AS Vigente,
+          SUM(Vencido) AS Vencido,
+          SUM(Saldo) AS Saldo,
+          NombreSucursal AS Sucursal
+        FROM dbo.fn_CuentasPorCobrar_Excel('${endDate}', ${idEmpresa})
+        WHERE TipoCliente = 'Externo'
+        GROUP BY Nombre, RFC, NombreSucursal
+      `;
+
+      return executeQuery(query).then(result => ({ month, result }));
+    });
+
+    const monthResults = await Promise.all(monthPromises);
+
     const months: MonthPortfolioData[] = [];
     const tableDetails: PortfolioDetail[] = [];
 
-    for (let month = 1; month <= 12; month++) {
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-
-      // Query a la base de datos RECO
-      const query = `
-        SELECT 
-          Cliente as Nombre,
-          RFC,
-          Total,
-          Vencido,
-          Dias,
-          UD
-        FROM dbo.fn_CuentasPorCobrar_Excel('${endDate}', ${idEmpresa})
-        WHERE RFC NOT LIKE '%INTERNO%'
-      `;
-
-      const result = await executeQuery(query);
+    for (const { month, result } of monthResults) {
+      const validData = result.success && result.data ? result.data : [];
 
       if (!result.success) {
-        console.warn(`Error fetching data for month ${month}:`, result.error);
+        console.warn(`Error fetching CXC month ${month}:`, result.error);
       }
 
-      const validData = result.data || [];
-
-      // Calcular métricas del mes
-      const totalPortfolio = validData.reduce((sum, item) => sum + (item.Total || 0), 0);
-      const totalOverdue = validData.reduce((sum, item) => sum + (item.Vencido || 0), 0);
+      const totalPortfolio = validData.reduce((sum: number, item: any) => sum + (item.Saldo || 0), 0);
+      const totalOverdue = validData.reduce((sum: number, item: any) => sum + (item.Vencido || 0), 0);
       const onTime = totalPortfolio - totalOverdue;
       const overduePercentage = totalPortfolio > 0 ? (totalOverdue / totalPortfolio) * 100 : 0;
 
@@ -63,30 +69,15 @@ export async function GET(request: NextRequest) {
         overduePercentage: Math.round(overduePercentage * 100) / 100,
       });
 
-      // Agregar detalles por cliente para este mes
-      const clientGroups = new Map<string, any[]>();
-      validData.forEach((item) => {
-        const key = item.RFC || item.Nombre || 'Sin RFC';
-        if (!clientGroups.has(key)) {
-          clientGroups.set(key, []);
-        }
-        clientGroups.get(key)!.push(item);
-      });
-
-      Array.from(clientGroups.entries()).forEach(([rfc, items]) => {
-        const clientName = items[0]?.Nombre || 'Sin Nombre';
-        const branch = items[0]?.UD || 'Sin Sucursal';
-        const clientTotal = items.reduce((sum, item) => sum + (item.Total || 0), 0);
-        const clientOverdue = items.reduce((sum, item) => sum + (item.Vencido || 0), 0);
-        const clientOnTime = clientTotal - clientOverdue;
-
+      // Detalles por cliente (solo meses con datos)
+      validData.forEach((item: any) => {
         tableDetails.push({
-          clientName,
-          rfc,
-          onTime: Math.round(clientOnTime * 100) / 100,
-          overdue: Math.round(clientOverdue * 100) / 100,
-          total: Math.round(clientTotal * 100) / 100,
-          branch,
+          clientName: item.Nombre || 'Sin Nombre',
+          rfc: item.RFC || 'Sin RFC',
+          onTime: Math.round((item.Vigente || 0) * 100) / 100,
+          overdue: Math.round((item.Vencido || 0) * 100) / 100,
+          total: Math.round((item.Saldo || 0) * 100) / 100,
+          branch: item.Sucursal || 'Sin Sucursal',
           month,
         });
       });

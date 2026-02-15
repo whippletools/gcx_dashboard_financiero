@@ -15,7 +15,8 @@ const navigation = [
     href: "/",
     icon: Home,
   },
-  {
+  // Ocultos temporalmente - se habilitarán cuando las vistas individuales estén listas
+  /*{
     name: "Cartera",
     href: "/portfolio",
     icon: PieChart,
@@ -30,7 +31,7 @@ const navigation = [
     href: "/financing",
     icon: DollarSign,
   },
-  /*{
+  {
     name: "Reportes",
     href: "/reports",
     icon: FileText,

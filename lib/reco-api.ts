@@ -139,69 +139,56 @@ export async function executeQueryWithParams(
 }
 
 // Queries predefinidas para el dashboard
+// Todas usan SELECT/WITH + CROSS APPLY a funciones TVF (compatible con API RECO)
 export const DASHBOARD_QUERIES = {
-  // Tendencia de cobrado por mes
+  // Tendencia de cobrado por mes - fn_CGA_Cobrados(@dFechaIni DATE, @dFechaFin DATE, @nIdEmp11 INT)
   tendenciaCobrado: (year: number, idEmpresa: number) => `
-    SELECT 
-      MONTH(FechaPago) as Mes,
-      SUM(TotalCobrado) as TotalCobrado,
-      YEAR(FechaPago) as Anio
-    FROM dbo.fn_CGA_Cobrados(${idEmpresa}, ${year})
-    GROUP BY MONTH(FechaPago), YEAR(FechaPago)
-    ORDER BY Mes
+    WITH CTE_Meses AS (
+      SELECT 1 AS NumeroMes, DATEFROMPARTS(${year}, 1, 1) AS FechaInicioMes, EOMONTH(DATEFROMPARTS(${year}, 1, 1)) AS FechaFinMes
+      UNION ALL
+      SELECT NumeroMes + 1, DATEFROMPARTS(${year}, NumeroMes + 1, 1), EOMONTH(DATEFROMPARTS(${year}, NumeroMes + 1, 1))
+      FROM CTE_Meses WHERE NumeroMes < 12
+    )
+    SELECT m.NumeroMes AS Mes, SUM(c.GastosME_Cob + c.IngresosME_Cob) AS TotalCobrado, COUNT(*) AS CantidadFacturas
+    FROM CTE_Meses m
+    CROSS APPLY dbo.fn_CGA_Cobrados(m.FechaInicioMes, m.FechaFinMes, ${idEmpresa}) c
+    GROUP BY m.NumeroMes ORDER BY m.NumeroMes OPTION (MAXRECURSION 12)
   `,
   
-  // Antigüedad de cartera
+  // Antigüedad de cartera - fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
   antiguedadCartera: (fechaCorte: string, idEmpresa: number) => `
     SELECT 
-      Cliente,
-      RFC,
-      CASE 
-        WHEN Dias BETWEEN 1 AND 30 THEN '01-30'
-        WHEN Dias BETWEEN 31 AND 60 THEN '31-60'
-        WHEN Dias BETWEEN 61 AND 90 THEN '61-90'
-        WHEN Dias BETWEEN 91 AND 120 THEN '91-120'
-        ELSE '121+'
-      END as Rango,
-      SUM(Saldo) as Monto,
-      Dias
+      Nombre AS Cliente, RFC, Saldo AS Total, DiasTranscurridos AS Dias, NombreSucursal AS Sucursal
     FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', ${idEmpresa})
-    WHERE RFC NOT LIKE 'INTERNO%'
-    GROUP BY Cliente, RFC, Dias
-    ORDER BY Dias DESC
+    WHERE TipoCliente = 'Externo'
   `,
   
-  // Tendencia cartera CXC
+  // Tendencia cartera CXC - fn_CuentasPorCobrar_Excel via CROSS APPLY
   tendenciaCarteraCXC: (year: number, idEmpresa: number) => `
-    SELECT 
-      MONTH(Fecha) as Mes,
-      SUM(CASE WHEN Dias > 0 THEN Saldo ELSE 0 END) as Vencido,
-      SUM(CASE WHEN Dias <= 0 THEN Saldo ELSE 0 END) as EnTiempo,
-      SUM(Saldo) as Total
-    FROM dbo.fn_CuentasPorCobrar_Excel('${year}-12-31', ${idEmpresa})
-    WHERE YEAR(Fecha) = ${year}
-    GROUP BY MONTH(Fecha)
-    ORDER BY Mes
+    WITH CTE_Meses AS (
+      SELECT 1 AS NumeroMes, EOMONTH(DATEFROMPARTS(${year}, 1, 1)) AS FechaFinMes
+      UNION ALL
+      SELECT NumeroMes + 1, EOMONTH(DATEFROMPARTS(${year}, NumeroMes + 1, 1))
+      FROM CTE_Meses WHERE NumeroMes < 12
+    )
+    SELECT f.Nombre, f.RFC,
+      SUM(CASE WHEN f.DiasTranscurridos < 1 THEN f.Saldo ELSE 0 END) AS Vigente,
+      SUM(CASE WHEN f.DiasTranscurridos >= 1 THEN f.Saldo ELSE 0 END) AS Vencido,
+      SUM(f.Saldo) AS Saldo, f.NombreSucursal AS Sucursal, m.NumeroMes AS Mes
+    FROM CTE_Meses m
+    CROSS APPLY dbo.fn_CuentasPorCobrar_Excel(m.FechaFinMes, ${idEmpresa}) f
+    WHERE f.TipoCliente = 'Externo'
+    GROUP BY f.Nombre, f.RFC, f.NombreSucursal, m.NumeroMes
+    ORDER BY m.NumeroMes, f.Nombre OPTION (MAXRECURSION 12)
   `,
   
-  // Resumen por oficinas
+  // Resumen por oficinas - fn_CuentasPorCobrar_Excel
   resumenOficinas: (fechaCorte: string, idEmpresa: number) => `
     SELECT 
-      UD as Oficina,
-      COUNT(*) as CantidadFacturas,
-      SUM(CASE WHEN Dias BETWEEN 1 AND 30 THEN Total ELSE 0 END) as [01-30],
-      SUM(CASE WHEN Dias BETWEEN 31 AND 45 THEN Total ELSE 0 END) as [31-45],
-      SUM(CASE WHEN Dias BETWEEN 46 AND 60 THEN Total ELSE 0 END) as [46-60],
-      SUM(CASE WHEN Dias BETWEEN 61 AND 90 THEN Total ELSE 0 END) as [61-90],
-      SUM(CASE WHEN Dias > 90 THEN Total ELSE 0 END) as [91+],
-      SUM(Total) as Total,
-      SUM([TOTAL HON]) as SaldoDAC,
-      SUM([TOTAL COMPL]) as SaldoClientes,
-      SUM(Cobrado) as Cobrado,
-      SUM(Vencido) as Vencido
+      Unidad AS Oficina, Cobrador AS Agente,
+      Saldo AS Total, Vencido, DiasTranscurridos AS Dias,
+      PagosNetos, Honorarios, Complementarios, RFC, Nombre
     FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', ${idEmpresa})
-    WHERE RFC NOT LIKE 'INTERNO%'
-    GROUP BY UD
-    ORDER BY SUM(Total) DESC
+    WHERE TipoCliente = 'Externo'
   `
 };

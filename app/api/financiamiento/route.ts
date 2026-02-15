@@ -1,6 +1,6 @@
 // app/api/financiamiento/route.ts
 // API Route para US-004: Tendencia Financiamiento CxC DAC
-// GET /api/financiamiento?year=2024&idEmpresa=1&officeId=DAC001
+// GET /api/financiamiento?year=2026&idEmpresa=1&officeId=DAC001
 
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/reco-api';
@@ -23,88 +23,104 @@ export async function GET(request: NextRequest) {
 
     // Obtener lista de oficinas usando API RECO
     const officesQuery = `
-      SELECT DISTINCT UD as id, UD as name
-      FROM dbo.fn_CuentasPorCobrar_Excel('${year}-12-31', ${idEmpresa})
-      WHERE UD IS NOT NULL AND RFC NOT LIKE '%INTERNO%'
+      SELECT DISTINCT Unidad AS id, Unidad AS name
+      FROM dbo.fn_CuentasPorCobrar_Excel(EOMONTH(DATEFROMPARTS(${year}, 12, 1)), ${idEmpresa})
+      WHERE Unidad IS NOT NULL AND TipoCliente = 'Externo'
     `;
     
     const officesResult = await executeQuery(officesQuery);
     const offices: Office[] = (officesResult.data || []).map((row: any, index: number) => ({
-      id: row.id || row.UD || `office-${index}`,
-      name: row.name || row.UD || 'Sin Oficina',
+      id: row.id || `office-${index}`,
+      name: row.name || 'Sin Oficina',
     }));
 
-    // Mock units - en producción vendrían de otra tabla
     const units: Unit[] = [
       { id: 'all', name: 'Todas las Unidades' },
-      { id: 'u1', name: 'Unidad A' },
-      { id: 'u2', name: 'Unidad B' },
     ];
 
-    // Query mensual usando API RECO
+    // Query CROSS APPLY: replica sp_Tendencia_Financiamiento
+    // fn_Tendencia_Financiamiento(@FechaInicio DATE, @FechaCorte DATE, @IdEmpresa INT)
+    const officeFilter = officeId && officeId !== 'all' ? `WHERE f.Unidad = '${officeId}'` : '';
+    const query = `
+      WITH CTE_Meses AS (
+        SELECT 
+          1 AS NumeroMes,
+          DATEFROMPARTS(${year}, 1, 1) AS FechaInicioMes,
+          EOMONTH(DATEFROMPARTS(${year}, 1, 1)) AS FechaFinMes
+        UNION ALL
+        SELECT 
+          NumeroMes + 1,
+          DATEFROMPARTS(${year}, NumeroMes + 1, 1),
+          EOMONTH(DATEFROMPARTS(${year}, NumeroMes + 1, 1))
+        FROM CTE_Meses
+        WHERE NumeroMes < 12
+      )
+      SELECT 
+        f.Unidad,
+        f.Oficina,
+        SUM(f.PagosFinanciadosPendiente) AS FinanciadoPTE,
+        SUM(f.PagosFinanciadosFacturado) AS FinanciadoFAC,
+        m.NumeroMes AS MES
+      FROM CTE_Meses m
+      CROSS APPLY dbo.fn_Tendencia_Financiamiento(m.FechaInicioMes, m.FechaFinMes, ${idEmpresa}) f
+      ${officeFilter}
+      GROUP BY f.Unidad, f.Oficina, m.NumeroMes
+      ORDER BY m.NumeroMes
+      OPTION (MAXRECURSION 12)
+    `;
+
+    const result = await executeQuery(query);
+
     const months: MonthFinancingData[] = [];
     const tableDetails: FinancingDetail[] = [];
 
-    for (let month = 1; month <= 12; month++) {
-      const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-
-      // Query usando fn_Tendencia_Financiamiento
-      const query = `
-        SELECT 
-          UD,
-          SUM(FinanciadoPTE) as ANTICIPO,
-          SUM(FinanciadoFAC) as FINANCIAMIENTO
-        FROM dbo.fn_Tendencia_Financiamiento(${idEmpresa}, ${year}, ${month})
-        ${officeId && officeId !== 'all' ? `WHERE UD = '${officeId}'` : ''}
-        GROUP BY UD
-      `;
-
-      const result = await executeQuery(query);
-
-      if (!result.success) {
-        console.warn(`Error fetching financing data for month ${month}:`, result.error);
-      }
-
-      const validData = result.data || [];
-
-      // Calcular totales de financiamiento
-      // FinanciadoPTE = ANTICIPO (financiamiento por facturar)
-      // FinanciadoFAC = FINANCIAMIENTO (financiamiento facturado)
-      const pendingInvoice = validData.reduce((sum, item) => sum + (item.ANTICIPO || 0), 0);
-      const invoiced = validData.reduce((sum, item) => sum + (item.FINANCIAMIENTO || 0), 0);
-
-      months.push({
-        month,
-        monthName: formatMonthName(month),
-        pendingInvoice: Math.round(pendingInvoice * 100) / 100,
-        invoiced: Math.round(invoiced * 100) / 100,
-        total: Math.round((pendingInvoice + invoiced) * 100) / 100,
-      });
-
-      // Agregar detalles por oficina para este mes
-      const officeGroups = new Map<string, any[]>();
-      validData.forEach((item) => {
-        const key = item.UD || 'Sin Oficina';
-        if (!officeGroups.has(key)) {
-          officeGroups.set(key, []);
-        }
-        officeGroups.get(key)!.push(item);
-      });
-
-      Array.from(officeGroups.entries()).forEach(([office, items]) => {
-        const unit = 'General'; // En producción vendría del campo correspondiente
-        const officePending = items.reduce((sum, item) => sum + (item.ANTICIPO || 0), 0);
-        const officeInvoiced = items.reduce((sum, item) => sum + (item.FINANCIAMIENTO || 0), 0);
-
-        tableDetails.push({
-          unit,
-          office,
-          pendingInvoice: Math.round(officePending * 100) / 100,
-          invoiced: Math.round(officeInvoiced * 100) / 100,
+    if (!result.success || !result.data) {
+      console.warn('Error fetching financiamiento:', result.error);
+      for (let month = 1; month <= 12; month++) {
+        months.push({
           month,
+          monthName: formatMonthName(month),
+          pendingInvoice: 0,
+          invoiced: 0,
+          total: 0,
         });
+      }
+    } else {
+      // Agrupar por mes
+      const monthGroups = new Map<number, any[]>();
+      result.data.forEach((row: any) => {
+        const mes = row.MES || row.Mes || row.mes;
+        if (!monthGroups.has(mes)) {
+          monthGroups.set(mes, []);
+        }
+        monthGroups.get(mes)!.push(row);
       });
+
+      for (let month = 1; month <= 12; month++) {
+        const monthData = monthGroups.get(month) || [];
+
+        const pendingInvoice = monthData.reduce((sum, item) => sum + (item.FinanciadoPTE || 0), 0);
+        const invoiced = monthData.reduce((sum, item) => sum + (item.FinanciadoFAC || 0), 0);
+
+        months.push({
+          month,
+          monthName: formatMonthName(month),
+          pendingInvoice: Math.round(pendingInvoice * 100) / 100,
+          invoiced: Math.round(invoiced * 100) / 100,
+          total: Math.round((pendingInvoice + invoiced) * 100) / 100,
+        });
+
+        // Detalles por oficina
+        monthData.forEach((item: any) => {
+          tableDetails.push({
+            unit: item.Unidad || 'General',
+            office: item.Oficina || 'Sin Oficina',
+            pendingInvoice: Math.round((item.FinanciadoPTE || 0) * 100) / 100,
+            invoiced: Math.round((item.FinanciadoFAC || 0) * 100) / 100,
+            month,
+          });
+        });
+      }
     }
 
     const response: FinancingTrendData = {
