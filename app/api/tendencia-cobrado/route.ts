@@ -74,6 +74,8 @@ async function fetchYearData(
     OPTION (MAXRECURSION 12)
   `;
 
+  console.log(`[TENDENCIA-COBRADO] Query año ${year}:\n${query.trim()}`);
+
   const result = await executeQuery(query);
 
   const months: MonthlyCollectionData[] = [];

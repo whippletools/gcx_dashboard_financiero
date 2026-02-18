@@ -172,8 +172,8 @@ export const DASHBOARD_QUERIES = {
       FROM CTE_Meses WHERE NumeroMes < 12
     )
     SELECT f.Nombre, f.RFC,
-      SUM(CASE WHEN f.DiasTranscurridos < 1 THEN f.Saldo ELSE 0 END) AS Vigente,
-      SUM(CASE WHEN f.DiasTranscurridos >= 1 THEN f.Saldo ELSE 0 END) AS Vencido,
+      SUM(f.Tiempo) AS Vigente,
+      SUM(f.Vencido) AS Vencido,
       SUM(f.Saldo) AS Saldo, f.NombreSucursal AS Sucursal, m.NumeroMes AS Mes
     FROM CTE_Meses m
     CROSS APPLY dbo.fn_CuentasPorCobrar_Excel(m.FechaFinMes, ${idEmpresa}) f

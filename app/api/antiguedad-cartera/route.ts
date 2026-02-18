@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
       WHERE TipoCliente = 'Externo'
     `;
 
+    console.log(`[ANTIGUEDAD-CARTERA] Query:\n${query.trim()}`);
+
     const result = await executeQuery(query);
 
     if (!result.success || !result.data) {

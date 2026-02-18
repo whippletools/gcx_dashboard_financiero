@@ -23,11 +23,14 @@ export async function GET(request: NextRequest) {
 
     // Obtener lista de oficinas usando API RECO
     const officesQuery = `
-      SELECT DISTINCT Unidad AS id, Unidad AS name
+      SELECT Unidad AS id, Unidad AS name
       FROM dbo.fn_CuentasPorCobrar_Excel(EOMONTH(DATEFROMPARTS(${year}, 12, 1)), ${idEmpresa})
       WHERE Unidad IS NOT NULL AND TipoCliente = 'Externo'
+      GROUP BY Unidad
     `;
     
+    console.log(`[FINANCIAMIENTO] Query oficinas:\n${officesQuery.trim()}`);
+
     const officesResult = await executeQuery(officesQuery);
     const offices: Office[] = (officesResult.data || []).map((row: any, index: number) => ({
       id: row.id || `office-${index}`,
@@ -68,6 +71,8 @@ export async function GET(request: NextRequest) {
       ORDER BY m.NumeroMes
       OPTION (MAXRECURSION 12)
     `;
+
+    console.log(`[FINANCIAMIENTO] Query principal:\n${query.trim()}`);
 
     const result = await executeQuery(query);
 

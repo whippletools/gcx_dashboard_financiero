@@ -49,6 +49,8 @@ export async function GET(request: NextRequest) {
       OPTION (MAXRECURSION 12)
     `;
 
+    console.log(`[GARANTIAS-TENDENCIA] Query:\n${query.trim()}`);
+
     const result = await executeQuery(query);
 
     const months: MonthGuaranteeTrend[] = [];

@@ -20,15 +20,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Obtener lista de aduanas usando API RECO
+    // Obtener lista de aduanas usando API RECO (GROUP BY en vez de DISTINCT)
     const aduanasQuery = `
-      SELECT DISTINCT UD as aduana
+      SELECT Unidad AS aduana
       FROM dbo.fn_CuentasPorCobrar_Excel('${year}-12-31', 1)
-      WHERE UD IS NOT NULL AND RFC NOT LIKE '%INTERNO%'
+      WHERE Unidad IS NOT NULL AND TipoCliente = 'Externo'
+      GROUP BY Unidad
     `;
+
+    console.log(`[FACTURACION] Query aduanas:\n${aduanasQuery.trim()}`);
     
     const aduanasResult = await executeQuery(aduanasQuery);
-    const uniqueAduanas = (aduanasResult.data || []).map((row: any) => row.aduana || row.UD).filter(Boolean);
+    const uniqueAduanas = (aduanasResult.data || []).map((row: any) => row.aduana || row.Unidad).filter(Boolean);
 
     // Obtener datos mensuales de facturación
     const aduanas: AduanaBilling[] = [];
@@ -54,15 +57,17 @@ export async function GET(request: NextRequest) {
         const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
         const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-        // Query usando API RECO
+        // Query usando API RECO - columnas reales: Honorarios, Complementarios
+        const aduanaFilter = aduanaId && aduanaId !== 'all' ? `AND Unidad = '${aduana}'` : '';
         const query = `
           SELECT 
-            [TOTAL HON] as TotalHonorarios,
-            [TOTAL COMPL] as TotalComplementos
+            SUM(Honorarios) AS TotalHonorarios,
+            SUM(Complementarios) AS TotalComplementos
           FROM dbo.fn_CuentasPorCobrar_Excel('${endDate}', 1)
-          WHERE Fecha >= '${startDate}' AND Fecha <= '${endDate}'
-          ${aduanaId && aduanaId !== 'all' ? `AND (UD = '${aduana}' OR AA = '${aduana}')` : ''}
+          WHERE TipoCliente = 'Externo' ${aduanaFilter}
         `;
+
+        console.log(`[FACTURACION] Query aduana=${aduana} mes=${month}:\n${query.trim()}`);
 
         const result = await executeQuery(query);
 

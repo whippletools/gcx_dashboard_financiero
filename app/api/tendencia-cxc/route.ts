@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
         GROUP BY Nombre, RFC, NombreSucursal
       `;
 
+      console.log(`[TENDENCIA-CXC] Query Mes ${month}:\n${query.trim()}`);
+
       return executeQuery(query).then(result => ({ month, result }));
     });
 

@@ -54,6 +54,8 @@ export async function GET(request: NextRequest) {
       OPTION (MAXRECURSION 12)
     `;
 
+    console.log(`[GARANTIAS-ESTATUS] Query:\n${query.trim()}`);
+
     const result = await executeQuery(query);
 
     const months: MonthGuaranteeData[] = [];
