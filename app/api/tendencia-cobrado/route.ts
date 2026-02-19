@@ -7,6 +7,8 @@ import { executeQuery } from '@/lib/reco-api';
 import { CollectionTrendData, MonthlyCollectionData } from '@/types/dashboard';
 import { formatMonthName } from '@/lib/utils/formatters';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

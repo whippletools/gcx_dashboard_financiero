@@ -7,6 +7,8 @@ import { executeQuery } from '@/lib/reco-api';
 import { AgingData, AgingBucket, AgingDetail, AgingRange, RiskLevel } from '@/types/dashboard';
 import { agingRiskColors } from '@/lib/utils/colors';
 
+export const dynamic = 'force-dynamic';
+
 const AGING_RANGES: { range: AgingRange; min: number; max: number }[] = [
   { range: '1-30', min: 1, max: 30 },
   { range: '31-60', min: 31, max: 60 },

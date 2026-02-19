@@ -7,6 +7,8 @@ import { executeQuery } from '@/lib/reco-api';
 import { GuaranteeStatusData, MonthGuaranteeData, GuaranteeStatusDetail, GuaranteeStatus } from '@/types/dashboard';
 import { formatMonthName } from '@/lib/utils/formatters';
 
+export const dynamic = 'force-dynamic';
+
 // Mapeo de códigos de estatus a nombres
 const STATUS_MAP: Record<string, GuaranteeStatus> = {
   'Programadas': 'Programadas',

@@ -5,6 +5,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/reco-api';
 import { OfficeSummaryData, OfficeSummary, OfficeSummaryParams } from '@/types/dashboard';
+import { formatMonthName } from '@/lib/utils/formatters';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
