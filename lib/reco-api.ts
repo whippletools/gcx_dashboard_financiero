@@ -2,33 +2,35 @@
 // Cliente para API RECO - SQL Query Service
 // http://rws.grucas.com:19287/api/reco/encoded
 
-import { Buffer } from 'buffer';
+const RECO_API_URL = process.env.RECO_API_URL || 'http://rws.grucas.com:19287/api/reco/encoded';
+const RECO_TIMEOUT_MS = 9000; // 9s para caber dentro del límite de 10s de Netlify Functions
 
-const RECO_API_URL = 'http://rws.grucas.com:19287/api/reco/encoded';
-
-// Obtener credenciales de variables de entorno
-const GCX_USER = process.env.GCX_USER || '';
-const GCX_PASSWORD = process.env.GCX_PASSWORD || '';
-
-// Cache del token para evitar recalcular
-let cachedToken: string | null = null;
+/**
+ * Codifica un string a Base64 (compatible con Node.js y Edge)
+ */
+function toBase64(str: string): string {
+  if (typeof btoa === 'function') {
+    // Node.js 18+ y navegadores
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+  // Fallback para Node.js más viejo
+  return Buffer.from(str).toString('base64');
+}
 
 /**
  * Codifica credenciales en Base64 (username:password)
  */
 function getAuthToken(): string {
-  if (cachedToken) return cachedToken;
-  
-  const credentials = `${GCX_USER}:${GCX_PASSWORD}`;
-  cachedToken = Buffer.from(credentials).toString('base64');
-  return cachedToken;
+  const user = process.env.GCX_USER || '';
+  const password = process.env.GCX_PASSWORD || '';
+  return toBase64(`${user}:${password}`);
 }
 
 /**
  * Codifica una query SQL en Base64
  */
 function encodeQuery(query: string): string {
-  return Buffer.from(query).toString('base64');
+  return toBase64(query);
 }
 
 /**
@@ -58,10 +60,6 @@ export interface RecoQueryResult {
  */
 export async function executeQuery(query: string): Promise<RecoQueryResult> {
   try {
-    // Debug: Verificar credenciales
-    console.log('[RECO API] GCX_USER:', GCX_USER ? 'Configurado' : 'NO CONFIGURADO');
-    console.log('[RECO API] GCX_PASSWORD:', GCX_PASSWORD ? 'Configurado' : 'NO CONFIGURADO');
-    
     // Validar query
     if (!isSafeQuery(query)) {
       console.error('[RECO API] Query no permitida:', query.substring(0, 100));
@@ -73,45 +71,50 @@ export async function executeQuery(query: string): Promise<RecoQueryResult> {
 
     const token = getAuthToken();
     const encodedQuery = encodeQuery(query);
-    
-    console.log('[RECO API] URL:', RECO_API_URL);
-    console.log('[RECO API] Token (primeros 20 chars):', token.substring(0, 20) + '...');
-    console.log('[RECO API] Query (primeros 100 chars):', query.substring(0, 100));
 
-    const response = await fetch(RECO_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ query: encodedQuery })
-    });
+    // AbortController para respetar timeout de Netlify Functions (10s)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), RECO_TIMEOUT_MS);
 
-    console.log('[RECO API] Response status:', response.status);
+    try {
+      const response = await fetch(RECO_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ query: encodedQuery }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[RECO API] Error response:', errorText);
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[RECO API] Error response:', response.status, errorText);
+        return {
+          success: false,
+          error: `Error ${response.status}: ${errorText || response.statusText}`
+        };
+      }
+
+      const data = await response.json();
+
       return {
-        success: false,
-        error: `Error ${response.status}: ${errorText || response.statusText}`
+        success: true,
+        data: data.results || data,
+        rowCount: data.rowCount || (data.results ? data.results.length : 0)
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
 
-    const data = await response.json();
-    console.log('[RECO API] Response data keys:', Object.keys(data));
-    
-    return {
-      success: true,
-      data: data.results || data,
-      rowCount: data.rowCount || (data.results ? data.results.length : 0)
-    };
-
   } catch (error) {
-    console.error('[RECO API] Exception:', error);
+    const msg = error instanceof Error ? error.message : 'Error desconocido';
+    console.error('[RECO API] Exception:', msg);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Error desconocido'
+      error: msg.includes('abort') ? 'Timeout: la consulta tardó más de 9 segundos' : msg
     };
   }
 }
