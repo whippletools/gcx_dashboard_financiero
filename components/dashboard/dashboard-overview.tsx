@@ -15,19 +15,29 @@ import { BillingChart } from "@/components/charts/BillingChart"
 import { useCollectionTrend, useAgingData, usePortfolioTrend, useFinancingTrend, useOfficeSummary, useGuaranteeStatus, useGuaranteeTrend } from "@/hooks"
 
 export function DashboardOverview() {
-  const currentYear = new Date().getFullYear()
+  const currentYear = new Date().getFullYear() // Volver al año actual dinámico
   const [selectedYear, setSelectedYear] = useState(currentYear)
   const [selectedOffice, setSelectedOffice] = useState<string | undefined>(undefined)
 
-  // Hooks para datos
+  // Hooks para datos - DESHABILITADOS TEMPORALMENTE para depurar Tendencia de Cobrado
   const { data: collectionData, isLoading: isLoadingCollection } = useCollectionTrend({ year: selectedYear, idEmpresa: 1 })
+  
   const todayStr = new Date().toISOString().split('T')[0]
-  const { data: agingData, isLoading: isLoadingAging } = useAgingData({ fechaCorte: todayStr, idEmpresa: 1 })
-  const { data: portfolioData, isLoading: isLoadingPortfolio } = usePortfolioTrend({ year: selectedYear, idEmpresa: 1 })
-  const { data: financingData, isLoading: isLoadingFinancing } = useFinancingTrend({ year: selectedYear, idEmpresa: 1, officeId: selectedOffice })
-  const { data: officeSummaryData, isLoading: isLoadingOffices } = useOfficeSummary({ fechaCorte: todayStr, idEmpresa: 1 })
-  const { data: guaranteeStatusData, isLoading: isLoadingGuaranteeStatus } = useGuaranteeStatus({ year: selectedYear, idEmpresa: 1 })
-  const { data: guaranteeTrendData, isLoading: isLoadingGuaranteeTrend } = useGuaranteeTrend({ year: selectedYear, idEmpresa: 1 })
+  // const { data: agingData, isLoading: isLoadingAging } = useAgingData({ fechaCorte: todayStr, idEmpresa: 1 })
+  // const { data: portfolioData, isLoading: isLoadingPortfolio } = usePortfolioTrend({ year: selectedYear, idEmpresa: 1 })
+  // const { data: financingData, isLoading: isLoadingFinancing } = useFinancingTrend({ year: selectedYear, idEmpresa: 1, officeId: selectedOffice })
+  // const { data: officeSummaryData, isLoading: isLoadingOffices } = useOfficeSummary({ fechaCorte: todayStr, idEmpresa: 1 })
+  // const { data: guaranteeStatusData, isLoading: isLoadingGuaranteeStatus } = useGuaranteeStatus({ year: selectedYear, idEmpresa: 1 })
+  // const { data: guaranteeTrendData, isLoading: isLoadingGuaranteeTrend } = useGuaranteeTrend({ year: selectedYear, idEmpresa: 1 })
+
+  // Mock data temporal para evitar errores en componentes
+  const isLoadingAging = false, isLoadingPortfolio = false, isLoadingFinancing = false, isLoadingOffices = false, isLoadingGuaranteeStatus = false, isLoadingGuaranteeTrend = false;
+  const agingData = { summary: { total: 0, current: 0, overdue: 0 }, buckets: [] } as any;
+  const portfolioData = { currentYear: [], previousYear: [] } as any;
+  const financingData = { currentYear: [], previousYear: [], details: [], offices: [], units: [] } as any;
+  const officeSummaryData: any[] = [];
+  const guaranteeStatusData = { currentYear: [], previousYear: [], details: [] } as any;
+  const guaranteeTrendData = { currentYear: [], previousYear: [], details: [] } as any;
 
   const isLoading = isLoadingCollection || isLoadingAging || isLoadingPortfolio || isLoadingFinancing || 
                     isLoadingOffices || isLoadingGuaranteeStatus || isLoadingGuaranteeTrend

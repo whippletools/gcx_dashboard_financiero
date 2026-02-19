@@ -3,7 +3,7 @@
 // GET /api/facturacion?year=2024&aduanaId=ADU001
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/reco-api';
+import { executeQueryWithRetry } from '@/lib/reco-api';
 import { BillingData, MonthBillingData, AduanaBilling } from '@/types/dashboard';
 import { formatMonthName } from '@/lib/utils/formatters';
 
@@ -30,37 +30,25 @@ export async function GET(request: NextRequest) {
       GROUP BY Unidad
     `;
 
-    console.log(`[FACTURACION] Query aduanas:\n${aduanasQuery.trim()}`);
+    console.log(`[FACTURACION] Query aduanas (limitado a 20)`);
     
-    const aduanasResult = await executeQuery(aduanasQuery);
+    const aduanasResult = await executeQueryWithRetry(aduanasQuery, { useCache: true, retries: 1 });
     const uniqueAduanas = (aduanasResult.data || []).map((row: any) => row.aduana || row.Unidad).filter(Boolean);
 
-    // Obtener datos mensuales de facturación
-    const aduanas: AduanaBilling[] = [];
-    const months: string[] = [];
+    // Optimización: Consultas batch por mes - limitado a 6 meses
+    const monthlyTotals: MonthBillingData[] = [];
+    const BATCH_SIZE = 1;
+    const MAX_MONTHS = 6; // Limitar a semestre para evitar timeouts
 
-    // Generar nombres de meses
-    for (let month = 1; month <= 12; month++) {
-      months.push(formatMonthName(month));
-    }
+    for (let batchStart = 1; batchStart <= MAX_MONTHS; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE - 1, 12);
+      const batchPromises = [];
 
-    // Si se especifica una aduana, obtener datos solo de esa
-    // Si no, agregar datos de todas las aduanas
-    const aduanasToProcess = aduanaId && aduanaId !== 'all' 
-      ? [aduanaId] 
-      : uniqueAduanas.slice(0, 10); // Limitar a primeras 10 aduanas para rendimiento
-
-    for (const aduana of aduanasToProcess) {
-      const monthlyData: MonthBillingData[] = [];
-      let totalHonorarios = 0;
-      let totalOtros = 0;
-
-      for (let month = 1; month <= 12; month++) {
-        const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-
-        // Query usando API RECO - columnas reales: Honorarios, Complementarios
-        const aduanaFilter = aduanaId && aduanaId !== 'all' ? `AND Unidad = '${aduana}'` : '';
+      for (let month = batchStart; month <= batchEnd; month++) {
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+        
+        // Query agregada por todas las aduanas
+        const aduanaFilter = aduanaId && aduanaId !== 'all' ? `AND Unidad = '${aduanaId}'` : '';
         const query = `
           SELECT 
             SUM(Honorarios) AS TotalHonorarios,
@@ -69,45 +57,52 @@ export async function GET(request: NextRequest) {
           WHERE TipoCliente = 'Externo' ${aduanaFilter}
         `;
 
-        console.log(`[FACTURACION] Query aduana=${aduana} mes=${month}:\n${query.trim()}`);
+        batchPromises.push(
+          executeQueryWithRetry(query, { useCache: true, retries: 1 })
+            .then(result => ({ month, result }))
+            .catch(error => {
+              console.error(`[FACTURACION] Error mes ${month}:`, error);
+              return { month, result: { success: false, data: [] } };
+            })
+        );
+      }
 
-        const result = await executeQuery(query);
+      const batchResults = await Promise.all(batchPromises);
 
-        if (!result.success) {
-          console.warn(`Error fetching billing data for aduana ${aduana} month ${month}:`, result.error);
-        }
+      for (const { month, result } of batchResults) {
+        const data = result.success ? (result.data || []) : [];
+        const honorarios = data.reduce((sum, item) => sum + (item.TotalHonorarios || 0), 0);
+        const otros = data.reduce((sum, item) => sum + (item.TotalComplementos || 0), 0);
 
-        const validData = result.data || [];
-
-        // Calcular totales
-        // TOTAL HON = Honorarios (parte inferior - azul)
-        // TOTAL COMPL = Otros (parte superior - negro)
-        const honorarios = validData.reduce((sum, item) => sum + (item.TotalHonorarios || item['TOTAL HON'] || 0), 0);
-        const otros = validData.reduce((sum, item) => sum + (item.TotalComplementos || item['TOTAL COMPL'] || 0), 0);
-
-        monthlyData.push({
+        monthlyTotals.push({
           month,
           monthName: formatMonthName(month),
           honorarios: Math.round(honorarios * 100) / 100,
           otros: Math.round(otros * 100) / 100,
           total: Math.round((honorarios + otros) * 100) / 100,
         });
-
-        totalHonorarios += honorarios;
-        totalOtros += otros;
       }
 
-      const totalGeneral = totalHonorarios + totalOtros;
-
-      aduanas.push({
-        id: aduana,
-        name: aduana,
-        monthlyData,
-        average: totalGeneral > 0 ? totalGeneral / 12 : 0,
-        totalHonorarios: Math.round(totalHonorarios * 100) / 100,
-        totalOtros: Math.round(totalOtros * 100) / 100,
-      });
+      if (batchEnd < 12) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
+
+    // Construir respuesta simplificada
+    const aduanaName = aduanaId && aduanaId !== 'all' ? aduanaId : 'Todas las Aduanas';
+    const totalHonorarios = monthlyTotals.reduce((sum, m) => sum + m.honorarios, 0);
+    const totalOtros = monthlyTotals.reduce((sum, m) => sum + m.otros, 0);
+
+    const aduanas: AduanaBilling[] = [{
+      id: aduanaName,
+      name: aduanaName,
+      monthlyData: monthlyTotals.sort((a, b) => a.month - b.month),
+      average: (totalHonorarios + totalOtros) / 12,
+      totalHonorarios: Math.round(totalHonorarios * 100) / 100,
+      totalOtros: Math.round(totalOtros * 100) / 100,
+    }];
+
+    const months: string[] = monthlyTotals.map(m => m.monthName);
 
     const response: BillingData = {
       aduanas,

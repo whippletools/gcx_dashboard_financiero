@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { executeQuery } from "@/lib/reco-api"
+import { executeQueryWithRetry } from "@/lib/reco-api"
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ export async function GET() {
       WHERE TipoCliente = 'Externo'
     `
 
-    const result = await executeQuery(query)
+    const result = await executeQueryWithRetry(query, { useCache: true, retries: 1 })
 
     if (!result.success || !result.data) {
       console.error("Error fetching cobranza data via RECO:", result.error)

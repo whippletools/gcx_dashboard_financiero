@@ -3,7 +3,7 @@
 // GET /api/garantias/tendencia?year=2026&idEmpresa=1
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/reco-api';
+import { executeQueryWithRetry } from '@/lib/reco-api';
 import { GuaranteeTrendData, MonthGuaranteeTrend, GuaranteeTrendDetail } from '@/types/dashboard';
 import { formatMonthName } from '@/lib/utils/formatters';
 
@@ -22,67 +22,45 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query CROSS APPLY: replica sp_Tendencia_cartera_Garantias
-    // fn_GarantiasPorCobrar(@FechaCorte DATE, @IdEmpresa INT)
-    // Columnas reales: sProveedor, DiasTranscurridos, Saldo, sNombreSucursal
-    const query = `
-      WITH CTE_Meses AS (
-        SELECT 
-          1 AS NumeroMes,
-          EOMONTH(DATEFROMPARTS(${year}, 1, 1)) AS FechaFinMes
-        UNION ALL
-        SELECT 
-          NumeroMes + 1,
-          EOMONTH(DATEFROMPARTS(${year}, NumeroMes + 1, 1))
-        FROM CTE_Meses
-        WHERE NumeroMes < 12
-      )
-      SELECT
-        g.sProveedor AS Nombre,
-        SUM(CASE WHEN g.DiasTranscurridos < 1 THEN g.Saldo ELSE 0 END) AS Vigente,
-        SUM(CASE WHEN g.DiasTranscurridos >= 1 THEN g.Saldo ELSE 0 END) AS Vencido,
-        SUM(g.Saldo) AS Saldo,
-        g.sNombreSucursal AS Sucursal,
-        m.NumeroMes AS Mes
-      FROM CTE_Meses m
-      CROSS APPLY dbo.fn_GarantiasPorCobrar(m.FechaFinMes, ${idEmpresa}) g
-      GROUP BY g.sProveedor, g.sNombreSucursal, m.NumeroMes
-      ORDER BY m.NumeroMes, g.sProveedor
-      OPTION (MAXRECURSION 12)
-    `;
-
-    console.log(`[GARANTIAS-TENDENCIA] Query:\n${query.trim()}`);
-
-    const result = await executeQuery(query);
-
+    // Consultas por mes para garantías - limitado a 6 meses
     const months: MonthGuaranteeTrend[] = [];
     const tableDetails: GuaranteeTrendDetail[] = [];
+    const BATCH_SIZE = 1;
+    const MAX_MONTHS = 6; // Limitar a semestre para evitar timeouts
 
-    if (!result.success || !result.data) {
-      console.warn('Error fetching garantias tendencia:', result.error);
-      for (let month = 1; month <= 12; month++) {
-        months.push({
-          month,
-          monthName: formatMonthName(month),
-          overdue: 0,
-          onTime: 0,
-          total: 0,
-          overduePercentage: 0,
-        });
+    for (let batchStart = 1; batchStart <= MAX_MONTHS; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE - 1, 12);
+      const batchPromises = [];
+
+      for (let month = batchStart; month <= batchEnd; month++) {
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+        
+        const query = `
+          SELECT
+            sProveedor AS Nombre,
+            CASE WHEN DiasTranscurridos < 1 THEN Saldo ELSE 0 END AS Vigente,
+            CASE WHEN DiasTranscurridos >= 1 THEN Saldo ELSE 0 END AS Vencido,
+            Saldo,
+            sNombreSucursal AS Sucursal
+          FROM dbo.fn_GarantiasPorCobrar('${endDate}', ${idEmpresa})
+        `;
+        
+        batchPromises.push(
+          executeQueryWithRetry(query, { useCache: true, retries: 1 })
+            .then(result => ({ month, result }))
+            .catch(error => {
+              console.error(`[GARANTIAS-TENDENCIA] Error mes ${month}:`, error);
+              return { month, result: { success: false, data: [] } };
+            })
+        );
       }
-    } else {
-      // Agrupar por mes
-      const monthGroups = new Map<number, any[]>();
-      result.data.forEach((row: any) => {
-        const mes = row.Mes || row.mes;
-        if (!monthGroups.has(mes)) {
-          monthGroups.set(mes, []);
-        }
-        monthGroups.get(mes)!.push(row);
-      });
 
-      for (let month = 1; month <= 12; month++) {
-        const monthData = monthGroups.get(month) || [];
+      // Ejecutar batch
+      const batchResults = await Promise.all(batchPromises);
+
+      // Procesar resultados del batch
+      for (const { month, result } of batchResults) {
+        const monthData = result.success ? (result.data || []) : [];
 
         const totalPortfolio = monthData.reduce((sum, item) => sum + (item.Saldo || 0), 0);
         const totalOverdue = monthData.reduce((sum, item) => sum + (item.Vencido || 0), 0);
@@ -109,6 +87,11 @@ export async function GET(request: NextRequest) {
             month,
           });
         });
+      }
+
+      // Pausa entre batches
+      if (batchEnd < 12) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 

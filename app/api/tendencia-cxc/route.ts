@@ -3,7 +3,7 @@
 // GET /api/tendencia-cxc?year=2026&idEmpresa=1
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/reco-api';
+import { executeQueryWithRetry } from '@/lib/reco-api';
 import { PortfolioTrendData, MonthPortfolioData, PortfolioDetail } from '@/types/dashboard';
 import { formatMonthName } from '@/lib/utils/formatters';
 
@@ -22,12 +22,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Queries secuenciales por mes - fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
-    // Secuencial para evitar timeout en la API (paralelo satura el servidor)
+    // Queries secuenciales por mes - limitado a 6 meses para evitar timeouts
     const months: MonthPortfolioData[] = [];
     const tableDetails: PortfolioDetail[] = [];
+    const MAX_MONTHS = 6; // Limitar a semestre para evitar timeouts
 
-    for (let month = 1; month <= 12; month++) {
+    for (let month = 1; month <= MAX_MONTHS; month++) {
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
       console.log(`[TENDENCIA-CXC] Query Mes ${month}:\n${query.trim()}`);
 
-      const result = await executeQuery(query);
+      const result = await executeQueryWithRetry(query, { useCache: true, retries: 1 });
       const validData = result.success && result.data ? result.data : [];
 
       if (!result.success) {

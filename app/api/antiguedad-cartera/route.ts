@@ -3,7 +3,7 @@
 // GET /api/antiguedad-cartera?fechaCorte=2024-01-31&idEmpresa=1
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/reco-api';
+import { executeQueryWithRetry } from '@/lib/reco-api';
 import { AgingData, AgingBucket, AgingDetail, AgingRange, RiskLevel } from '@/types/dashboard';
 import { agingRiskColors } from '@/lib/utils/colors';
 
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[ANTIGUEDAD-CARTERA] Query:\n${query.trim()}`);
 
-    const result = await executeQuery(query);
+    const result = await executeQueryWithRetry(query, { useCache: true, retries: 1 });
 
     if (!result.success || !result.data) {
       console.error('Error fetching cobranza data:', result.error);

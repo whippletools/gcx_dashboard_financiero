@@ -81,9 +81,9 @@ export async function executeQuery(query: string): Promise<RecoQueryResult> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Basic ${token}`,
         },
-        body: JSON.stringify({ query: encodedQuery }),
+        body: JSON.stringify({ query: encodedQuery, format: 'json' }),
         signal: controller.signal,
       });
 
@@ -117,6 +117,43 @@ export async function executeQuery(query: string): Promise<RecoQueryResult> {
       error: msg.includes('abort') ? 'Timeout: la consulta tardó más de 9 segundos' : msg
     };
   }
+}
+
+/**
+ * Ejecuta query con retry automático y backoff exponencial
+ */
+export async function executeQueryWithRetry(
+  query: string,
+  options: { useCache?: boolean; retries?: number } = {}
+): Promise<RecoQueryResult> {
+  const MAX_RETRIES = 2;
+  const { useCache = false, retries = MAX_RETRIES } = options;
+  
+  let lastError: string | undefined;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      // Backoff exponencial: 500ms, 1000ms
+      const delay = 500 * Math.pow(2, attempt - 1);
+      console.log(`[RECO API] Reintento ${attempt}/${retries} en ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    const result = await executeQuery(query);
+
+    if (result.success && result.data) {
+      return result;
+    }
+
+    lastError = result.error;
+
+    // No reintentar en errores de validación
+    if (result.error?.includes('Query no permitida')) {
+      return result;
+    }
+  }
+
+  return { success: false, error: `Falló después de ${retries + 1} intentos: ${lastError}` };
 }
 
 /**
