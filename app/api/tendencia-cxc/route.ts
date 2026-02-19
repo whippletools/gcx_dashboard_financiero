@@ -20,10 +20,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Queries paralelas por mes - fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
-    // Usa columnas Tiempo y Vencido ya calculadas por la función (con DiasCredito)
-    const monthPromises = Array.from({ length: 12 }, (_, i) => {
-      const month = i + 1;
+    // Queries secuenciales por mes - fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
+    // Secuencial para evitar timeout en la API (paralelo satura el servidor)
+    const months: MonthPortfolioData[] = [];
+    const tableDetails: PortfolioDetail[] = [];
+
+    for (let month = 1; month <= 12; month++) {
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
@@ -42,19 +44,13 @@ export async function GET(request: NextRequest) {
 
       console.log(`[TENDENCIA-CXC] Query Mes ${month}:\n${query.trim()}`);
 
-      return executeQuery(query).then(result => ({ month, result }));
-    });
-
-    const monthResults = await Promise.all(monthPromises);
-
-    const months: MonthPortfolioData[] = [];
-    const tableDetails: PortfolioDetail[] = [];
-
-    for (const { month, result } of monthResults) {
+      const result = await executeQuery(query);
       const validData = result.success && result.data ? result.data : [];
 
       if (!result.success) {
-        console.warn(`Error fetching CXC month ${month}:`, result.error);
+        console.warn(`[TENDENCIA-CXC] Error mes ${month}:`, result.error);
+      } else {
+        console.log(`[TENDENCIA-CXC] Resultado mes ${month}: ${validData.length} registros`);
       }
 
       const totalPortfolio = validData.reduce((sum: number, item: any) => sum + (item.Saldo || 0), 0);
