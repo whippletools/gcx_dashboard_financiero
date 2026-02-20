@@ -251,20 +251,20 @@ export function BillingChart({
           <div className="mt-6 overflow-auto rounded-lg border border-outline-variant">
             <table className="w-full min-w-[600px]">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-surface-variant">
-                  <th className="px-4 py-3 text-left text-label-medium font-semibold text-on-surface-variant">
+                <tr className="bg-blue-700">
+                  <th className="px-4 py-3 text-left text-label-medium font-semibold text-white">
                     Aduana
                   </th>
-                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-on-surface-variant">
+                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-white">
                     Honorarios
                   </th>
-                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-on-surface-variant">
+                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-white">
                     Otros
                   </th>
-                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-on-surface-variant">
+                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-white">
                     Total
                   </th>
-                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-on-surface-variant">
+                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-white">
                     Promedio
                   </th>
                 </tr>

@@ -1,7 +1,7 @@
 # Tracking Dashboard GCX - Tareas por User Story
 
-> **Enfoque actual**: US-002 - Antigüedad de Cartera
-> **Estrategia**: Trabajar una tabla a la vez hasta obtener datos correctos antes de pasar a la siguiente
+> **Enfoque actual**: US-004, US-005, US-006, US-007, US-008 (US-002 y US-003 BLOQUEADOS por fn_CuentasPorCobrar_Excel)
+> **Estrategia**: Avanzar todos los US que NO dependen de fn_CuentasPorCobrar_Excel
 
 ---
 
@@ -10,13 +10,13 @@
 | ID | User Story | Estado | Prioridad | Blockers |
 |----|-----------|--------|-----------|----------|
 | US-001 | **Tendencia de Cobrado** (comparativo año pasado) | ✅ **TERMINADO** | Alta | - |
-| US-002 | Antigüedad Cartera General + tabla | 🔴 **EN PROCESO** | Alta | Verificar datos reales de API RECO |
-| US-003 | Tendencia Cartera CXC (Vencido vs En tiempo) | ⚪ Pendiente | Alta | - |
-| US-004 | Tendencia Financiamiento CxC DAC | ⚪ Pendiente | Media | - |
-| US-005 | Estatus Garantías | ⚪ Pendiente | Alta | - |
-| US-006 | Antigüedad/Tendencia Cartera Garantías | ⚪ Pendiente | Media | - |
-| US-007 | Resumen Corporativo por Oficina | ⚪ Pendiente | Alta | - |
-| US-008 | Módulo Facturación DAC | ⚪ Pendiente | Media | - |
+| US-002 | Antigüedad Cartera General + tabla | 🚫 **BLOQUEADO** | Alta | fn_CuentasPorCobrar_Excel con problemas |
+| US-003 | Tendencia Cartera CXC (Vencido vs En tiempo) | � **BLOQUEADO** | Alta | fn_CuentasPorCobrar_Excel con problemas |
+| US-004 | Tendencia Financiamiento CxC DAC | 🔴 **EN PROCESO** | Alta | fn_Tendencia_Financiamiento (libre) |
+| US-005 | Estatus Garantías | 🔴 **EN PROCESO** | Alta | fn_Garantias_Estatus (libre) |
+| US-006 | Resumen Corporativo por Oficina | 🚫 **BLOQUEADO** | Alta | fn_CuentasPorCobrar_Excel con problemas |
+| US-007 | Módulo Facturación DAC | 🚫 **BLOQUEADO** | Media | fn_CuentasPorCobrar_Excel con problemas |
+| US-008 | Tendencia Cartera Garantías | 🔴 **EN PROCESO** | Media | fn_GarantiasPorCobrar (libre) |
 
 ---
 
@@ -179,7 +179,77 @@ Agrupación: Por RFC (un cliente puede tener múltiples facturas en diferentes r
 
 ---
 
-## 📋 Historial de Cambios
+---
+
+## � US-003: Tendencia Cartera CXC - Tareas Detalladas
+
+### Especificación (del SDD)
+- **Fuente de datos**: `fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)` — una llamada por mes
+- **Métrica derivada**: `En tiempo = Saldo - Vencido`
+- **Componentes**: Stacked Bar Chart (Vencido=Azul / En tiempo=Naranja) + DataTable colapsable
+- **Columnas tabla**: Cliente, RFC, Vigente, Vencido, Saldo, Sucursal, Mes
+
+### Arquitectura Implementada
+
+```
+GET /api/tendencia-cxc?year=2026&idEmpresa=1
+  └── Loop mes 1..6 (secuencial, evita timeout)
+      └── fn_CuentasPorCobrar_Excel(fin_de_mes, idEmpresa)
+          └── GROUP BY Nombre, RFC, NombreSucursal
+              └── SUM(Tiempo) AS Vigente, SUM(Vencido), SUM(Saldo)
+```
+
+### Tareas de Implementación
+
+#### Fase 1: Backend API (Completado)
+- [x] Crear `/api/tendencia-cxc/route.ts`
+- [x] Loop secuencial mes a mes (mismo patrón que US-001)
+- [x] Calcular `onTime = totalPortfolio - totalOverdue`
+- [x] Calcular `overduePercentage` por mes
+- [x] Usar `executeQueryWithRetry` con cache
+
+#### Fase 2: Frontend Hook (Completado)
+- [x] Crear `hooks/usePortfolioTrend.ts` con React Query
+- [x] `staleTime: 5min`, `gcTime: 10min`
+- [x] Parámetros: `year` + `idEmpresa`
+
+#### Fase 3: Componente UI (Completado)
+- [x] `PortfolioTrendChart.tsx` — Stacked Bar Chart (Vencido/En tiempo)
+- [x] Tooltip con monto y % vencido por mes
+- [x] DataTable colapsable con detalle por cliente
+- [x] Summary cards: Total Vencido, Total En Tiempo, Cartera Actual, % Vencido Actual
+
+#### Fase 4: Integración en /cartera (Completado)
+- [x] Activar `usePortfolioTrend` en `cartera-overview.tsx`
+- [x] Selector de año para US-003
+- [x] US-002 y US-003 en la misma página `/cartera` con loading independiente
+
+#### Fase 5: Verificación de Datos (Pendiente)
+- [ ] Verificar que la API devuelve datos reales mes a mes
+- [ ] Confirmar que `Tiempo` (Vigente) y `Vencido` tienen valores correctos
+- [ ] Validar que `En tiempo = Saldo - Vencido` es correcto
+- [ ] Probar hover con montos exactos
+- [ ] Verificar que 6 meses se cargan sin timeout
+
+### Criterios de Aceptación US-003
+- [ ] Barras apiladas muestran 6 meses con datos reales
+- [ ] Azul = Vencido, Naranja = En tiempo
+- [ ] Hover muestra monto y % vencido por mes
+- [ ] Tabla colapsable muestra: Cliente, RFC, Vigente, Vencido, Saldo, Sucursal
+- [ ] Tiempo de carga < 10s (6 queries × ~1.5s cada uno)
+
+### Notas Técnicas
+```
+Función: fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
+Columnas: Nombre, RFC, SUM(Tiempo) AS Vigente, SUM(Vencido), SUM(Saldo), NombreSucursal
+Filtro: TipoCliente = 'Externo'
+FechaCorte: último día de cada mes (EOMONTH)
+Derivado: onTime = Saldo - Vencido (calculado en backend)
+```
+
+---
+
+## �� Historial de Cambios
 
 | Fecha | US | Cambio | Resultado |
 |-------|-----|--------|-----------|
@@ -189,16 +259,20 @@ Agrupación: Por RFC (un cliente puede tener múltiples facturas en diferentes r
 | 2026-02-19 | US-001 | Agregado executeQueryWithRetry | Retry automático |
 | 2026-02-19 | US-001 | Frontend-driven fetch por mes | Evita timeout de 10s |
 | 2026-02-19 | US-002 | Activar useAgingData en dashboard | Hook conectado a API real |
-| 2026-02-19 | US-002 | Agregar columnas Total + Sucursal en AgingAnalysis | Tabla más completa |
+| 2026-02-19 | US-002 | Query simplificado: solo Saldo + DiasTranscurridos | Sin Nombre/RFC en query principal |
+| 2026-02-19 | US-002 | Tabla principal: Rango / Monto / % (sin clientes) | Igual que imagen de referencia |
+| 2026-02-19 | US-002 | Detalle por cliente movido a sección colapsable | Disponible bajo demanda |
+| 2026-02-19 | US-003 | Activar usePortfolioTrend en cartera-overview | Hook conectado a API real |
+| 2026-02-19 | US-003 | PortfolioTrendChart integrado en /cartera | Stacked Bar Chart activo |
 
 ---
 
 ## 🚀 Próximos Pasos
 
-1. **Verificar US-002**: Abrir tab "Cartera" y confirmar que el PieChart muestra datos reales
-2. **Si hay datos**: Marcar US-002 como terminado y pasar a US-003
-3. **Si hay timeout**: Aplicar mismo patrón que US-001 (fetch por mes/período)
-4. **US-003 siguiente**: Tendencia Cartera CXC (Vencido vs En tiempo)
+1. **Verificar US-003**: Abrir `/cartera` y confirmar barras apiladas con datos reales
+2. **Si hay timeout**: Reducir a 4 meses o aplicar fetch progresivo desde frontend
+3. **Verificar US-002**: Confirmar que PieChart y tabla de rangos muestran datos reales
+4. **US-004 siguiente**: Tendencia Financiamiento CxC DAC
 
 ---
 

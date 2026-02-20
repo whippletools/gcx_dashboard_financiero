@@ -103,12 +103,12 @@ export function DataTable<T extends Record<string, any>>({
       >
         <table className="w-full min-w-full">
           <thead className="sticky top-0 z-10">
-            <tr className="bg-surface-variant">
+            <tr className="bg-blue-700">
               {columns.map((column) => (
                 <th
                   key={String(column.key)}
-                  className={`px-4 py-3 text-left text-label-medium font-semibold text-on-surface-variant ${
-                    column.sortable && sortable ? 'cursor-pointer hover:bg-surface-container' : ''
+                  className={`px-4 py-3 text-left text-label-medium font-semibold text-white ${
+                    column.sortable && sortable ? 'cursor-pointer hover:bg-blue-600' : ''
                   } ${column.align === 'center' ? 'text-center' : column.align === 'right' ? 'text-right' : 'text-left'}`}
                   style={{ width: column.width }}
                   onClick={() => column.sortable && handleSort(String(column.key))}

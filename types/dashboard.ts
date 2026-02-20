@@ -127,22 +127,42 @@ export interface Unit {
 export type GuaranteeStatus = 'Programadas' | 'Naviera' | 'Operacion';
 
 export interface GuaranteeStatusData {
-  months: MonthGuaranteeData[];
-  tableData: GuaranteeStatusDetail[];
+  // Resumen total por estatus
+  summary: GuaranteeStatusSummary[];
+  // Tabla por semana: cada entrada es una semana con montos por estatus
+  weeks: WeekGuaranteeData[];
+  // Para la gráfica de barras apiladas
+  chartData: WeekGuaranteeData[];
 }
 
+export interface GuaranteeStatusSummary {
+  status: GuaranteeStatus;
+  amount: number;
+  percentage: number;
+}
+
+export interface WeekGuaranteeData {
+  weekNumber: number;   // Número de semana del año (DATEPART WEEK)
+  weekLabel: string;    // 'Sem.21', 'Sem.22', etc.
+  scheduled: number;    // Programadas
+  naviera: number;      // Naviera
+  operation: number;    // Operacion
+  total: number;
+}
+
+// Mantener compatibilidad con hook anterior
 export interface MonthGuaranteeData {
   month: number;
   monthName: string;
-  scheduled: number;  // Programadas
-  naviera: number;    // Naviera
-  operation: number;  // Operacion
+  scheduled: number;
+  naviera: number;
+  operation: number;
   total: number;
 }
 
 export interface GuaranteeStatusDetail {
   status: GuaranteeStatus;
-  amount: number;      // ImporteMN
+  amount: number;
   month: number;
   monthName: string;
 }

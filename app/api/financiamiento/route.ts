@@ -23,22 +23,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Obtener lista de oficinas usando API RECO (con retry)
-    const officesQuery = `
-      SELECT TOP 20 Unidad AS id, Unidad AS name
-      FROM dbo.fn_CuentasPorCobrar_Excel(EOMONTH(DATEFROMPARTS(${year}, 12, 1)), ${idEmpresa})
-      WHERE Unidad IS NOT NULL AND TipoCliente = 'Externo'
-      GROUP BY Unidad
-    `;
-    
-    console.log(`[FINANCIAMIENTO] Query oficinas (limitado a 20)`);
-
-    const officesResult = await executeQueryWithRetry(officesQuery, { useCache: true, retries: 1 });
-    const offices: Office[] = (officesResult.data || []).map((row: any, index: number) => ({
-      id: row.id || `office-${index}`,
-      name: row.name || 'Sin Oficina',
-    }));
-
+    // Las oficinas se extraerán de los datos reales de fn_Tendencia_Financiamiento
+    const offices: Office[] = [];
     const units: Unit[] = [
       { id: 'all', name: 'Todas las Unidades' },
     ];
@@ -115,11 +101,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Extraer oficinas únicas de los datos reales
+    const uniqueOfficeNames = [...new Set(tableDetails.map(d => d.office).filter(Boolean))];
+    const populatedOffices: Office[] = uniqueOfficeNames.map((name, i) => ({
+      id: name,
+      name,
+    }));
+
     const response: FinancingTrendData = {
       months,
       tableData: tableDetails,
       filters: {
-        offices,
+        offices: populatedOffices,
         units,
       },
     };

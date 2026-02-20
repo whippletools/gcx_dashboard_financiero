@@ -25,7 +25,7 @@ export function OfficeSummaryTable({
   title = 'Resumen Corporativo por Oficina',
   className,
   onOfficeClick,
-}: OfficeSummaryTablePropsProps) {
+}: OfficeSummaryTableProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>('total');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -110,14 +110,14 @@ export function OfficeSummaryTable({
         <div className="overflow-auto rounded-lg border border-outline-variant max-h-[600px]">
           <table className="w-full min-w-[1200px]">
             <thead className="sticky top-0 z-10">
-              <tr className="bg-surface-variant">
-                <th className="px-3 py-3 text-left text-label-medium font-semibold text-on-surface-variant w-12">
+              <tr className="bg-blue-700">
+                <th className="px-3 py-3 text-left text-label-medium font-semibold text-white w-12">
                   No.
                 </th>
                 {columns.map((column) => (
                   <th
                     key={String(column.key)}
-                    className={`px-3 py-3 text-label-medium font-semibold text-on-surface-variant cursor-pointer hover:bg-surface-container transition-colors ${
+                    className={`px-3 py-3 text-label-medium font-semibold text-white cursor-pointer hover:bg-blue-600 transition-colors ${
                       column.align === 'center' ? 'text-center' : column.align === 'right' ? 'text-right' : 'text-left'
                     }`}
                     onClick={() => handleSort(column.key)}

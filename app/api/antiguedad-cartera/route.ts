@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQueryWithRetry } from '@/lib/reco-api';
-import { AgingData, AgingBucket, AgingDetail, AgingRange, RiskLevel } from '@/types/dashboard';
+import { AgingData, AgingBucket, AgingDetail, AgingRange } from '@/types/dashboard';
 import { agingRiskColors } from '@/lib/utils/colors';
 
 export const dynamic = 'force-dynamic';
@@ -30,14 +30,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query usando API RECO - columnas reales de fn_CuentasPorCobrar_Excel
+    // Query US-002: solo Saldo y DiasTranscurridos para calcular buckets por rango
     const query = `
       SELECT 
-        Nombre AS Cliente,
-        RFC,
         Saldo AS Total,
-        DiasTranscurridos AS Dias,
-        NombreSucursal AS Sucursal
+        DiasTranscurridos AS Dias
       FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', ${idEmpresa})
       WHERE TipoCliente = 'Externo'
     `;
@@ -58,8 +55,8 @@ export async function GET(request: NextRequest) {
 
     // Calcular distribución por rangos de antigüedad
     const chartData = calculateAgingBuckets(cobranzaData || []);
-    const tableData = calculateAgingDetails(cobranzaData || []);
-    const summary = calculateSummary(cobranzaData || [], tableData);
+    const tableData: AgingDetail[] = []; // El detalle por cliente se carga desde /api/antiguedad-cartera/detalle
+    const summary = calculateSummary(cobranzaData || []);
 
     const response: AgingData = {
       chartData,
@@ -104,72 +101,17 @@ function calculateAgingBuckets(data: any[]): AgingBucket[] {
 }
 
 /**
- * Calcula el detalle por cliente para la tabla
+ * Calcula el resumen general a partir de los registros crudos
  */
-function calculateAgingDetails(data: any[]): AgingDetail[] {
-  // Agrupar por RFC/Nombre de cliente
-  const clientGroups = new Map<string, any[]>();
-
-  data.forEach((item) => {
-    const key = item.RFC || item.Nombre || 'Sin RFC';
-    if (!clientGroups.has(key)) {
-      clientGroups.set(key, []);
-    }
-    clientGroups.get(key)!.push(item);
-  });
-
-  // Calcular totales por rango para cada cliente
-  return Array.from(clientGroups.entries()).map(([rfc, items]) => {
-    const clientName = items[0]?.Cliente || 'Sin Nombre';
-    const branch = items[0]?.Sucursal || 'Sin Sucursal';
-
-    const range1to30 = sumByRange(items, 1, 30);
-    const range31to60 = sumByRange(items, 31, 60);
-    const range61to90 = sumByRange(items, 61, 90);
-    const range91to120 = sumByRange(items, 91, 120);
-    const range121plus = sumByRange(items, 121, 5000);
-
-    const total = range1to30 + range31to60 + range61to90 + range91to120 + range121plus;
-
-    return {
-      clientName,
-      rfc,
-      range1to30: Math.round(range1to30 * 100) / 100,
-      range31to60: Math.round(range31to60 * 100) / 100,
-      range61to90: Math.round(range61to90 * 100) / 100,
-      range91to120: Math.round(range91to120 * 100) / 100,
-      range121plus: Math.round(range121plus * 100) / 100,
-      total: Math.round(total * 100) / 100,
-      branch,
-    };
-  }).sort((a, b) => b.total - a.total); // Ordenar por total descendente
-}
-
-/**
- * Suma los totales de items que caen en un rango de días específico
- */
-function sumByRange(items: any[], minDays: number, maxDays: number): number {
-  return items
-    .filter((item) => {
-      const dias = item.Dias || 0;
-      return dias >= minDays && dias <= maxDays;
-    })
-    .reduce((sum, item) => sum + (item.Total || 0), 0);
-}
-
-/**
- * Calcula el resumen general
- */
-function calculateSummary(data: any[], tableData: AgingDetail[]) {
+function calculateSummary(data: any[]) {
   const totalAmount = data.reduce((sum, item) => sum + (item.Total || 0), 0);
-  const totalClients = tableData.length;
-  const avgDays = data.length > 0 
-    ? data.reduce((sum, item) => sum + (item.Dias || 0), 0) / data.length 
+  const avgDays = data.length > 0
+    ? data.reduce((sum, item) => sum + (item.Dias || 0), 0) / data.length
     : 0;
 
   return {
     totalAmount: Math.round(totalAmount * 100) / 100,
-    totalClients,
+    totalClients: 0, // Se calcula en /api/antiguedad-cartera/detalle
     averageDays: Math.round(avgDays * 100) / 100,
   };
 }
