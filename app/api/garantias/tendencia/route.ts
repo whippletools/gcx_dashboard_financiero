@@ -50,47 +50,65 @@ export async function GET(request: NextRequest) {
     }
 
     const weekDates = getWeekDates(year);
-    // Limitar a las últimas 20 semanas para evitar timeouts
+    // Últimas 20 semanas
     const recentWeeks = weekDates.slice(-20);
+
+    // Ejecutar en lotes paralelos de 5 para reducir tiempo de respuesta
+    const BATCH_SIZE = 5;
+    const allResults: { week: typeof recentWeeks[0]; rowData: any[] }[] = [];
+
+    for (let i = 0; i < recentWeeks.length; i += BATCH_SIZE) {
+      const batch = recentWeeks.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (week) => {
+          const query = `
+            SELECT
+              sProveedor AS Nombre,
+              DiasTranscurridos,
+              CASE WHEN DiasTranscurridos > ${OVERDUE_THRESHOLD} THEN Saldo ELSE 0 END AS Vencido,
+              CASE WHEN DiasTranscurridos <= ${OVERDUE_THRESHOLD} THEN Saldo ELSE 0 END AS EnProceso,
+              Saldo,
+              sNombreSucursal AS Sucursal
+            FROM dbo.fn_GarantiasPorCobrar('${week.date}', ${idEmpresa})
+            WHERE Saldo > 0
+          `;
+          try {
+            const result = await executeQueryWithRetry(query, { useCache: true, retries: 1 });
+            return { week, rowData: result.success ? (result.data || []) : [] };
+          } catch (e) {
+            console.error(`[GARANTIAS-TENDENCIA] Error semana ${week.weekLabel}:`, e);
+            return { week, rowData: [] };
+          }
+        })
+      );
+      allResults.push(...batchResults);
+      // Pequeña pausa entre lotes
+      if (i + BATCH_SIZE < recentWeeks.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    // Ordenar por número de semana y construir respuesta
+    allResults.sort((a, b) => a.week.weekNumber - b.week.weekNumber);
 
     const weeks: any[] = [];
     const tableDetails: any[] = [];
 
-    for (const week of recentWeeks) {
-      const query = `
-        SELECT
-          sProveedor AS Nombre,
-          DiasTranscurridos,
-          CASE WHEN DiasTranscurridos > ${OVERDUE_THRESHOLD} THEN Saldo ELSE 0 END AS Vencido,
-          CASE WHEN DiasTranscurridos <= ${OVERDUE_THRESHOLD} THEN Saldo ELSE 0 END AS EnProceso,
-          Saldo,
-          sNombreSucursal AS Sucursal
-        FROM dbo.fn_GarantiasPorCobrar('${week.date}', ${idEmpresa})
-        WHERE Saldo > 0
-      `;
-
-      let rowData: any[] = [];
-      try {
-        const result = await executeQueryWithRetry(query, { useCache: true, retries: 1 });
-        rowData = result.success ? (result.data || []) : [];
-      } catch (e) {
-        console.error(`[GARANTIAS-TENDENCIA] Error semana ${week.weekLabel}:`, e);
-      }
-
-      const totalPortfolio = rowData.reduce((s, r) => s + (r.Saldo || 0), 0);
-      const totalOverdue   = rowData.reduce((s, r) => s + (r.Vencido || 0), 0);
-      const totalOnTime    = rowData.reduce((s, r) => s + (r.EnProceso || 0), 0);
+    for (const { week, rowData } of allResults) {
+      const totalPortfolio    = rowData.reduce((s, r) => s + (r.Saldo     || 0), 0);
+      const totalOverdue      = rowData.reduce((s, r) => s + (r.Vencido   || 0), 0);
+      const totalOnTime       = rowData.reduce((s, r) => s + (r.EnProceso || 0), 0);
       const overduePercentage = totalPortfolio > 0 ? (totalOverdue / totalPortfolio) * 100 : 0;
 
       weeks.push({
-        weekNumber:        week.weekNumber,
-        weekLabel:         week.weekLabel,
-        date:              week.date,
+        weekNumber:         week.weekNumber,
+        weekLabel:          week.weekLabel,
+        date:               week.date,
         garantiasEnProceso: Math.round(totalOnTime    * 100) / 100,
-        programado:        Math.round(totalPortfolio  * 100) / 100,
-        overdue:           Math.round(totalOverdue    * 100) / 100,
-        total:             Math.round(totalPortfolio  * 100) / 100,
-        overduePercentage: Math.round(overduePercentage * 100) / 100,
+        programado:         Math.round(totalPortfolio * 100) / 100,
+        overdue:            Math.round(totalOverdue   * 100) / 100,
+        total:              Math.round(totalPortfolio * 100) / 100,
+        overduePercentage:  Math.round(overduePercentage * 100) / 100,
       });
 
       rowData.forEach((item: any) => {
@@ -103,8 +121,6 @@ export async function GET(request: NextRequest) {
           weekLabel:    week.weekLabel,
         });
       });
-
-      await new Promise(resolve => setTimeout(resolve, 80));
     }
 
     return NextResponse.json({ weeks, tableData: tableDetails, overdueThreshold: OVERDUE_THRESHOLD });

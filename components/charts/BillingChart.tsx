@@ -1,338 +1,237 @@
 'use client';
 
 // components/charts/BillingChart.tsx
-// US-007: Facturación DAC (Honorarios vs Resto)
-// Material Design 3 Stacked Bar Chart implementation
-// Honorarios: parte inferior (azul), Resto: parte superior (negro)
+// US-007: Facturación DAC — Tabla mensual + Gráfica apilada
+// Honorarios: parte inferior (azul #3B82F6)
+// Resto facturación: parte superior (naranja #F97316)
 
 import { useState } from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, ReferenceLine,
   TooltipProps,
-  ReferenceLine,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Receipt, Building2, TrendingUp } from 'lucide-react';
+import { Receipt, Building2 } from 'lucide-react';
 import { BillingData, AduanaBilling, MonthBillingData } from '@/types/dashboard';
 import { formatCurrency, formatMonthNameShort } from '@/lib/utils/formatters';
-import { trendSeriesColors, chartColors, chartAxisColors } from '@/lib/utils/colors';
+import { chartAxisColors } from '@/lib/utils/colors';
+
+const COLOR_HONORARIOS = '#3B82F6'; // azul — parte inferior
+const COLOR_RESTO      = '#F97316'; // naranja — parte superior
 
 interface BillingChartProps {
   data: BillingData;
   title?: string;
   className?: string;
-  selectedAduana?: string;
-  onAduanaChange?: (aduanaId: string) => void;
 }
 
-interface ChartDataPoint {
-  month: number;
-  monthName: string;
-  honorarios: number;
-  otros: number;
-  total: number;
-}
+const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+  if (!active || !payload?.length) return null;
+  const hon   = payload.find(p => p.dataKey === 'honorarios');
+  const resto = payload.find(p => p.dataKey === 'otros');
+  const total = (Number(hon?.value) || 0) + (Number(resto?.value) || 0);
+  const pct   = total > 0 ? ((Number(hon?.value) || 0) / total * 100).toFixed(1) : '0.0';
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-sm min-w-[210px]">
+      <p className="font-bold text-gray-800 mb-2">{label}</p>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: COLOR_HONORARIOS }} />
+        <span className="text-gray-600">Honorarios:</span>
+        <span className="font-semibold ml-auto">{formatCurrency(Number(hon?.value) || 0)}</span>
+      </div>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: COLOR_RESTO }} />
+        <span className="text-gray-600">Resto:</span>
+        <span className="font-semibold ml-auto">{formatCurrency(Number(resto?.value) || 0)}</span>
+      </div>
+      <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between">
+        <span className="text-gray-600">Total:</span>
+        <span className="font-bold">{formatCurrency(total)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-gray-600">% Honorarios:</span>
+        <span className="font-bold text-blue-600">{pct}%</span>
+      </div>
+    </div>
+  );
+};
 
-export function BillingChart({
-  data,
-  title = 'Facturación por Aduana DAC',
-  className,
-  selectedAduana = 'all',
-  onAduanaChange,
-}: BillingChartProps) {
-  const [selectedAduanaId, setSelectedAduanaId] = useState<string>(selectedAduana);
+export function BillingChart({ data, title = 'Facturación DAC', className }: BillingChartProps) {
+  const [selectedAduanaId, setSelectedAduanaId] = useState<string>('all');
 
-  // Get selected aduana data or aggregate all
-  const aduanaData = selectedAduanaId === 'all' 
-    ? aggregateAllAduanas(data.aduanas)
-    : data.aduanas.find(a => a.id === selectedAduanaId) || data.aduanas[0];
+  // Seleccionar datos de aduana o agregar todas
+  const aduanaData: AduanaBilling | undefined =
+    selectedAduanaId === 'all'
+      ? data.aduanas.find(a => a.id === 'all') ?? data.aduanas[0]
+      : data.aduanas.find(a => a.id === selectedAduanaId) ?? data.aduanas[0];
 
-  // Transform data for Recharts
-  const chartData: ChartDataPoint[] = aduanaData?.monthlyData.map((month) => ({
-    month: month.month,
-    monthName: formatMonthNameShort(month.month),
-    honorarios: month.honorarios,
-    otros: month.otros,
-    total: month.total,
-  })) || [];
+  const monthlyData: MonthBillingData[] = aduanaData?.monthlyData ?? [];
+  const nonZeroMonths = monthlyData.filter(m => m.total > 0);
 
-  // Calculate metrics
-  const totalHonorarios = aduanaData?.totalHonorarios || 0;
-  const totalOtros = aduanaData?.totalOtros || 0;
-  const totalGeneral = totalHonorarios + totalOtros;
-  const average = totalGeneral > 0 ? totalGeneral / 12 : 0;
-  const honorariosPercentage = totalGeneral > 0 ? (totalHonorarios / totalGeneral) * 100 : 0;
+  const totalHonorarios = monthlyData.reduce((s, m) => s + m.honorarios, 0);
+  const totalOtros      = monthlyData.reduce((s, m) => s + m.otros, 0);
+  const totalGeneral    = totalHonorarios + totalOtros;
+  const promedio        = nonZeroMonths.length > 0 ? totalGeneral / nonZeroMonths.length : 0;
 
-  // Handle aduana change
-  const handleAduanaChange = (aduanaId: string) => {
-    setSelectedAduanaId(aduanaId);
-    onAduanaChange?.(aduanaId);
-  };
-
-  // Custom Tooltip
-  const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
-    if (active && payload && payload.length) {
-      const honorarios = payload.find(p => p.dataKey === 'honorarios');
-      const otros = payload.find(p => p.dataKey === 'otros');
-      const total = (Number(honorarios?.value) || 0) + (Number(otros?.value) || 0);
-
-      return (
-        <div className="bg-surface-container-highest border border-outline-variant rounded-lg p-3 shadow-elevation-2 min-w-[200px]">
-          <p className="text-title-small text-on-surface mb-2">{label}</p>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: trendSeriesColors.honorarios }} />
-            <span className="text-body-medium text-on-surface-variant">Honorarios:</span>
-            <span className="text-body-medium text-on-surface font-medium">
-              {formatCurrency(Number(honorarios?.value))}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: trendSeriesColors.otros }} />
-            <span className="text-body-medium text-on-surface-variant">Otros:</span>
-            <span className="text-body-medium text-on-surface font-medium">
-              {formatCurrency(Number(otros?.value))}
-            </span>
-          </div>
-          <div className="border-t border-outline-variant mt-2 pt-2">
-            <div className="flex justify-between">
-              <span className="text-body-medium text-on-surface-variant">Total:</span>
-              <span className="text-body-medium text-on-surface font-semibold">
-                {formatCurrency(total)}
-              </span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
+  const chartData = monthlyData.map(m => ({
+    monthName: formatMonthNameShort(m.month),
+    honorarios: m.honorarios,
+    otros: m.otros,
+  }));
 
   return (
     <Card className={className}>
+      {/* ── Header ── */}
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2">
         <div className="flex items-center gap-2">
-          <Receipt className="w-5 h-5 text-primary flex-shrink-0" />
-          <CardTitle className="text-base sm:text-title-large text-on-surface">
-            {title}
-          </CardTitle>
+          <div className="p-2 rounded-lg bg-blue-100 flex-shrink-0">
+            <Receipt className="w-5 h-5 text-blue-700" />
+          </div>
+          <div>
+            <CardTitle className="text-base sm:text-title-large">{title}</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Total de facturación por todas las aduanas DAC — Periodicidad: Mensual
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-on-surface-variant flex-shrink-0" />
+            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <select
               value={selectedAduanaId}
-              onChange={(e) => handleAduanaChange(e.target.value)}
-              className="px-2 py-1.5 bg-surface-container rounded-lg text-xs sm:text-body-medium text-on-surface border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
+              onChange={e => setSelectedAduanaId(e.target.value)}
+              className="px-2 py-1.5 bg-surface-container rounded-lg text-xs sm:text-sm text-on-surface border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
             >
-              <option value="all">Todas las aduanas</option>
-              {data.aduanas.map((aduana) => (
-                <option key={aduana.id} value={aduana.id}>
-                  {aduana.name}
-                </option>
+              {data.aduanas.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
           </div>
           <div className="sm:text-right">
-            <p className="text-label-medium text-on-surface-variant">Total Facturado</p>
-            <p className="text-lg sm:text-headline-small text-on-surface font-semibold">
-              {formatCurrency(totalGeneral)}
-            </p>
+            <p className="text-xs text-muted-foreground">Total Facturado</p>
+            <p className="text-lg sm:text-headline-small font-semibold">{formatCurrency(totalGeneral)}</p>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="px-2 sm:px-6">
-        {/* Chart */}
-        <div className="h-[280px] sm:h-[380px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{ top: 40, right: 30, left: 20, bottom: 20 }}
-            >
-              <CartesianGrid 
-                strokeDasharray="4 4" 
-                stroke={chartAxisColors.grid}
-                vertical={false}
-              />
-              <XAxis 
-                dataKey="monthName"
-                axisLine={{ stroke: chartAxisColors.axis }}
-                tickLine={{ stroke: chartAxisColors.axis }}
-                tick={{ fill: chartAxisColors.tick, fontSize: 12 }}
-              />
-              <YAxis 
-                axisLine={{ stroke: chartAxisColors.axis }}
-                tickLine={{ stroke: chartAxisColors.axis }}
-                tick={{ fill: chartAxisColors.tick, fontSize: 12 }}
-                tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend 
-                verticalAlign="top"
-                align="right"
-                iconType="square"
-                wrapperStyle={{ paddingBottom: '20px' }}
-              />
-              {/* Línea de promedio */}
-              <ReferenceLine 
-                y={average} 
-                stroke={chartColors.orange}
-                strokeDasharray="5 5"
-                label={{
-                  value: `Promedio: ${formatCurrency(average)}`,
-                  position: 'right',
-                  fill: chartColors.orange,
-                  fontSize: 12,
-                }}
-              />
-              {/* Honorarios - parte inferior (azul) */}
-              <Bar
-                dataKey="honorarios"
-                name="Honorarios"
-                stackId="billing"
-                fill={trendSeriesColors.honorarios}
-                radius={[0, 0, 4, 4]}
-              />
-              {/* Otros - parte superior (negro/gris oscuro) */}
-              <Bar
-                dataKey="otros"
-                name="Otros Conceptos"
-                stackId="billing"
-                fill={trendSeriesColors.otros}
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-4 border-t border-outline-variant">
-          <div className="text-center p-3 rounded-lg bg-blue-50">
-            <p className="text-label-medium text-blue-700">Total Honorarios</p>
-            <p className="text-title-medium text-blue-900 font-semibold">
-              {formatCurrency(totalHonorarios)}
-            </p>
-          </div>
-          <div className="text-center p-3 rounded-lg bg-gray-100">
-            <p className="text-label-medium text-gray-700">Otros Conceptos</p>
-            <p className="text-title-medium text-gray-900 font-semibold">
-              {formatCurrency(totalOtros)}
-            </p>
-          </div>
-          <div className="text-center p-3 rounded-lg bg-surface-container-low">
-            <p className="text-label-medium text-on-surface-variant">Promedio Mensual</p>
-            <p className="text-title-medium text-on-surface font-semibold">
-              {formatCurrency(average)}
-            </p>
-          </div>
-          <div className="text-center p-3 rounded-lg bg-orange-50">
-            <p className="text-label-medium text-orange-700">% Honorarios</p>
-            <p className="text-title-medium text-orange-900 font-semibold">
-              {honorariosPercentage.toFixed(1)}%
-            </p>
-          </div>
-          <div className="text-center p-3 rounded-lg bg-surface-container-low">
-            <p className="text-label-medium text-on-surface-variant">Aduanas</p>
-            <p className="text-title-medium text-on-surface font-semibold">
-              {data.aduanas.length}
-            </p>
-          </div>
-        </div>
+      <CardContent className="p-0 pb-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 px-2 sm:px-4 pt-2">
 
-        {/* Tabla de aduanas */}
-        {selectedAduanaId === 'all' && (
-          <div className="mt-6 overflow-auto rounded-lg border border-outline-variant">
-            <table className="w-full min-w-[600px]">
-              <thead className="sticky top-0 z-10">
-                <tr className="bg-blue-700">
-                  <th className="px-4 py-3 text-left text-label-medium font-semibold text-white">
-                    Aduana
-                  </th>
-                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-white">
-                    Honorarios
-                  </th>
-                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-white">
-                    Otros
-                  </th>
-                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-white">
-                    Total
-                  </th>
-                  <th className="px-4 py-3 text-right text-label-medium font-semibold text-white">
-                    Promedio
-                  </th>
+          {/* ── Tabla mensual ── */}
+          <div className="overflow-x-auto rounded-lg border border-outline-variant min-w-0">
+            <table className="w-full min-w-[380px] text-xs sm:text-sm">
+              <thead>
+                <tr className="bg-blue-700 text-white">
+                  <th className="text-left px-3 py-2 font-semibold sticky left-0 bg-blue-700 z-10">Mes</th>
+                  <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Honorarios</th>
+                  <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Resto</th>
+                  <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Total</th>
+                  <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Promedio</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-outline-variant bg-surface">
-                {data.aduanas.slice(0, 10).map((aduana) => (
-                  <tr key={aduana.id} className="hover:bg-surface-container transition-colors">
-                    <td className="px-4 py-3 text-body-medium text-on-surface font-medium">
-                      {aduana.name}
+              <tbody className="divide-y divide-gray-100">
+                {monthlyData.map(m => (
+                  <tr key={m.month} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-3 py-1.5 font-medium text-blue-700 sticky left-0 bg-white z-10 whitespace-nowrap">
+                      {m.monthName}
                     </td>
-                    <td className="px-4 py-3 text-right text-body-medium text-on-surface">
-                      {formatCurrency(aduana.totalHonorarios)}
+                    <td className="px-3 py-1.5 text-right font-mono whitespace-nowrap text-blue-700">
+                      {m.honorarios > 0 ? formatCurrency(m.honorarios) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right text-body-medium text-on-surface">
-                      {formatCurrency(aduana.totalOtros)}
+                    <td className="px-3 py-1.5 text-right font-mono whitespace-nowrap text-orange-700">
+                      {m.otros > 0 ? formatCurrency(m.otros) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right text-body-medium text-on-surface font-semibold">
-                      {formatCurrency(aduana.totalHonorarios + aduana.totalOtros)}
+                    <td className="px-3 py-1.5 text-right font-mono font-semibold whitespace-nowrap">
+                      {m.total > 0 ? formatCurrency(m.total) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right text-body-medium text-on-surface-variant">
-                      {formatCurrency(aduana.average)}
+                    <td className="px-3 py-1.5 text-right font-mono text-muted-foreground whitespace-nowrap">
+                      {m.total > 0 ? formatCurrency(promedio) : '—'}
                     </td>
                   </tr>
                 ))}
+                {/* Fila totales */}
+                <tr className="bg-blue-50 font-bold border-t-2 border-blue-300">
+                  <td className="px-3 py-2 sticky left-0 bg-blue-50 z-10">Total</td>
+                  <td className="px-3 py-2 text-right font-mono text-blue-700 whitespace-nowrap">{formatCurrency(totalHonorarios)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-orange-700 whitespace-nowrap">{formatCurrency(totalOtros)}</td>
+                  <td className="px-3 py-2 text-right font-mono whitespace-nowrap">{formatCurrency(totalGeneral)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-muted-foreground whitespace-nowrap">{formatCurrency(promedio)}</td>
+                </tr>
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* ── Gráfica apilada ── */}
+          <div className="h-[260px] sm:h-[320px]">
+            <div className="flex flex-wrap gap-3 mb-2 text-xs text-muted-foreground px-1">
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: COLOR_HONORARIOS }} />
+                Azul: Honorarios (parte inferior)
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: COLOR_RESTO }} />
+                Naranja: Resto (parte superior)
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height="90%">
+              <BarChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="4 4" stroke={chartAxisColors.grid} vertical={false} />
+                <XAxis
+                  dataKey="monthName"
+                  axisLine={{ stroke: chartAxisColors.axis }}
+                  tickLine={false}
+                  tick={{ fill: chartAxisColors.tick, fontSize: 10 }}
+                  angle={-35}
+                  textAnchor="end"
+                />
+                <YAxis
+                  axisLine={{ stroke: chartAxisColors.axis }}
+                  tickLine={false}
+                  tick={{ fill: chartAxisColors.tick, fontSize: 10 }}
+                  tickFormatter={v => `$${(v / 1_000_000).toFixed(0)}M`}
+                  width={38}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend
+                  verticalAlign="top"
+                  iconType="square"
+                  iconSize={10}
+                  wrapperStyle={{ fontSize: '11px', paddingBottom: 4 }}
+                />
+                {promedio > 0 && (
+                  <ReferenceLine
+                    y={promedio}
+                    stroke="#6B7280"
+                    strokeDasharray="5 5"
+                    label={{ value: 'Prom.', position: 'right', fontSize: 10, fill: '#6B7280' }}
+                  />
+                )}
+                {/* Honorarios abajo (azul) */}
+                <Bar dataKey="honorarios" name="Honorarios" stackId="s" fill={COLOR_HONORARIOS} radius={[0, 0, 3, 3]} />
+                {/* Resto arriba (naranja) */}
+                <Bar dataKey="otros" name="Resto" stackId="s" fill={COLOR_RESTO} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* ── Resumen inferior ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-outline-variant mx-2 sm:mx-4">
+          <div className="text-center p-3 rounded-lg bg-blue-50">
+            <p className="text-xs text-blue-700 font-medium">Total Honorarios</p>
+            <p className="text-sm sm:text-base text-blue-900 font-semibold">{formatCurrency(totalHonorarios)}</p>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-orange-50">
+            <p className="text-xs text-orange-700 font-medium">Resto Facturación</p>
+            <p className="text-sm sm:text-base text-orange-900 font-semibold">{formatCurrency(totalOtros)}</p>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-gray-50">
+            <p className="text-xs text-gray-600 font-medium">Promedio Mensual</p>
+            <p className="text-sm sm:text-base text-gray-900 font-semibold">{formatCurrency(promedio)}</p>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
-}
-
-/**
- * Agrega datos de todas las aduanas en uno solo
- */
-function aggregateAllAduanas(aduanas: AduanaBilling[]): AduanaBilling {
-  const aggregatedMonthlyData: MonthBillingData[] = [];
-
-  for (let month = 1; month <= 12; month++) {
-    let monthHonorarios = 0;
-    let monthOtros = 0;
-
-    aduanas.forEach((aduana) => {
-      const monthData = aduana.monthlyData.find(m => m.month === month);
-      if (monthData) {
-        monthHonorarios += monthData.honorarios;
-        monthOtros += monthData.otros;
-      }
-    });
-
-    aggregatedMonthlyData.push({
-      month,
-      monthName: formatMonthNameShort(month),
-      honorarios: monthHonorarios,
-      otros: monthOtros,
-      total: monthHonorarios + monthOtros,
-    });
-  }
-
-  const totalHonorarios = aduanas.reduce((sum, a) => sum + a.totalHonorarios, 0);
-  const totalOtros = aduanas.reduce((sum, a) => sum + a.totalOtros, 0);
-
-  return {
-    id: 'all',
-    name: 'Todas las Aduanas',
-    monthlyData: aggregatedMonthlyData,
-    average: (totalHonorarios + totalOtros) / 12,
-    totalHonorarios,
-    totalOtros,
-  };
 }
