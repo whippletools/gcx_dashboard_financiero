@@ -99,31 +99,31 @@ export function GuaranteeStatusChart({ data, year }: GuaranteeStatusChartProps) 
             <div className="p-2 rounded-lg bg-green-100">
               <Shield className="w-5 h-5 text-green-700" />
             </div>
-            <CardTitle className="text-title-large">Estatus de Garantías — {year}</CardTitle>
+            <CardTitle className="text-base sm:text-title-large">Estatus de Garantías — {year}</CardTitle>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-hidden rounded-lg border border-outline-variant">
-            <table className="w-full text-sm">
+        <CardContent className="p-0 pb-4">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[320px] text-xs sm:text-sm">
               <thead>
                 <tr className="bg-blue-700 text-white">
-                  <th className="text-left px-4 py-3 font-bold text-base" colSpan={3}>
+                  <th className="text-left px-3 py-2 sm:px-4 sm:py-3 font-bold" colSpan={3}>
                     ESTATUS DE GARANTIAS
                   </th>
                 </tr>
                 <tr className="bg-blue-600 text-white border-b border-blue-500">
-                  <th className="text-left px-4 py-3 font-semibold text-white w-1/2">Estatus</th>
-                  <th className="text-right px-4 py-3 font-semibold text-white">MONTO</th>
-                  <th className="text-right px-4 py-3 font-semibold text-white">%</th>
+                  <th className="text-left px-3 py-2 sm:px-4 sm:py-3 font-semibold w-1/2">Estatus</th>
+                  <th className="text-right px-3 py-2 sm:px-4 sm:py-3 font-semibold">MONTO</th>
+                  <th className="text-right px-3 py-2 sm:px-4 sm:py-3 font-semibold">%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
                 {data.summary.map((item) => (
                   <tr key={item.status} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 font-medium text-on-surface">
+                    <td className="px-3 py-2 sm:px-4 sm:py-3 font-medium text-on-surface">
                       <div className="flex items-center gap-2">
                         <span
-                          className="inline-block w-3 h-3 rounded-sm"
+                          className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
                           style={{
                             backgroundColor:
                               item.status === 'Programadas' ? STATUS_COLORS.scheduled :
@@ -134,10 +134,10 @@ export function GuaranteeStatusChart({ data, year }: GuaranteeStatusChartProps) 
                         {item.status === 'Operacion' ? 'Operación' : item.status}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-medium text-on-surface">
+                    <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-mono font-medium text-on-surface">
                       {formatCurrency(item.amount)}
                     </td>
-                    <td className="px-4 py-3 text-right font-bold"
+                    <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-bold"
                       style={{
                         color:
                           item.status === 'Programadas' ? STATUS_COLORS.scheduled :
@@ -149,78 +149,73 @@ export function GuaranteeStatusChart({ data, year }: GuaranteeStatusChartProps) 
                     </td>
                   </tr>
                 ))}
-                {/* Fila total */}
                 <tr className="bg-muted/60 border-t-2 border-outline-variant font-semibold">
-                  <td className="px-4 py-3 font-bold text-on-surface">Total General</td>
-                  <td className="px-4 py-3 text-right font-mono font-bold text-on-surface">
+                  <td className="px-3 py-2 sm:px-4 sm:py-3 font-bold text-on-surface">Total General</td>
+                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-mono font-bold text-on-surface">
                     {formatCurrency(data.summary.reduce((s, i) => s + i.amount, 0))}
                   </td>
-                  <td className="px-4 py-3 text-right font-bold text-on-surface">100%</td>
+                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-bold text-on-surface">100%</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">Periodicidad: Semanal</p>
+          <p className="text-xs text-muted-foreground mt-2 px-4">Periodicidad: Semanal</p>
         </CardContent>
       </Card>
 
       {/* ── Sección 2: Tabla por semana (filas = estatus, columnas = semanas) ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-title-medium">Tenencia de Garantías por Semana — {year}</CardTitle>
+          <CardTitle className="text-sm sm:text-title-medium">Tenencia de Garantías por Semana — {year}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="text-sm border-collapse">
+        <CardContent className="p-0 pb-2">
+          <div className="overflow-x-auto w-full">
+            <table className="text-xs sm:text-sm border-collapse" style={{ minWidth: `${110 + visibleWeeks.length * 90}px` }}>
               <thead>
                 <tr className="bg-blue-700 text-white">
-                  <th className="text-left px-3 py-2 font-bold border border-blue-600 min-w-[110px]">Estatus</th>
+                  <th className="text-left px-2 py-2 sm:px-3 font-bold border border-blue-600 min-w-[90px] sm:min-w-[110px] sticky left-0 bg-blue-700 z-10">Estatus</th>
                   {visibleWeeks.map((w) => (
-                    <th key={w.weekNumber} className="text-right px-3 py-2 font-bold border border-blue-600 min-w-[100px]">
+                    <th key={w.weekNumber} className="text-right px-2 py-2 sm:px-3 font-bold border border-blue-600 min-w-[80px] sm:min-w-[95px]">
                       {w.weekLabel}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {/* Fila Programadas */}
                 <tr className="hover:bg-blue-50 transition-colors">
-                  <td className="px-3 py-2 font-semibold text-blue-700 border border-gray-200 bg-blue-50">
+                  <td className="px-2 py-2 sm:px-3 font-semibold text-blue-700 border border-gray-200 bg-blue-50 sticky left-0 z-10">
                     Programadas
                   </td>
                   {visibleWeeks.map((w) => (
-                    <td key={w.weekNumber} className="px-3 py-2 text-right font-mono border border-gray-200">
+                    <td key={w.weekNumber} className="px-2 py-2 sm:px-3 text-right font-mono border border-gray-200 whitespace-nowrap">
                       {w.scheduled > 0 ? formatCurrency(w.scheduled) : '—'}
                     </td>
                   ))}
                 </tr>
-                {/* Fila Naviera */}
                 <tr className="hover:bg-orange-50 transition-colors">
-                  <td className="px-3 py-2 font-semibold text-orange-700 border border-gray-200 bg-orange-50">
+                  <td className="px-2 py-2 sm:px-3 font-semibold text-orange-700 border border-gray-200 bg-orange-50 sticky left-0 z-10">
                     Naviera
                   </td>
                   {visibleWeeks.map((w) => (
-                    <td key={w.weekNumber} className="px-3 py-2 text-right font-mono border border-gray-200">
+                    <td key={w.weekNumber} className="px-2 py-2 sm:px-3 text-right font-mono border border-gray-200 whitespace-nowrap">
                       {w.naviera > 0 ? formatCurrency(w.naviera) : '—'}
                     </td>
                   ))}
                 </tr>
-                {/* Fila Operación */}
                 <tr className="hover:bg-green-50 transition-colors">
-                  <td className="px-3 py-2 font-semibold text-green-700 border border-gray-200 bg-green-50">
+                  <td className="px-2 py-2 sm:px-3 font-semibold text-green-700 border border-gray-200 bg-green-50 sticky left-0 z-10">
                     Operación
                   </td>
                   {visibleWeeks.map((w) => (
-                    <td key={w.weekNumber} className="px-3 py-2 text-right font-mono border border-gray-200">
+                    <td key={w.weekNumber} className="px-2 py-2 sm:px-3 text-right font-mono border border-gray-200 whitespace-nowrap">
                       {w.operation > 0 ? formatCurrency(w.operation) : '—'}
                     </td>
                   ))}
                 </tr>
-                {/* Fila Total */}
                 <tr className="bg-yellow-50 font-semibold border-t-2 border-yellow-400">
-                  <td className="px-3 py-2 font-bold border border-gray-200">Total</td>
+                  <td className="px-2 py-2 sm:px-3 font-bold border border-gray-200 sticky left-0 bg-yellow-50 z-10">Total</td>
                   {visibleWeeks.map((w) => (
-                    <td key={w.weekNumber} className="px-3 py-2 text-right font-mono font-bold border border-gray-200">
+                    <td key={w.weekNumber} className="px-2 py-2 sm:px-3 text-right font-mono font-bold border border-gray-200 whitespace-nowrap">
                       {formatCurrency(w.total)}
                     </td>
                   ))}
@@ -232,7 +227,7 @@ export function GuaranteeStatusChart({ data, year }: GuaranteeStatusChartProps) 
           {data.weeks.length > 15 && (
             <button
               onClick={() => setShowAllWeeks(!showAllWeeks)}
-              className="mt-3 text-sm text-primary underline hover:no-underline"
+              className="mt-3 mx-4 text-xs sm:text-sm text-primary underline hover:no-underline"
             >
               {showAllWeeks ? 'Ver menos semanas' : `Ver todas (${data.weeks.length} semanas)`}
             </button>
@@ -243,28 +238,33 @@ export function GuaranteeStatusChart({ data, year }: GuaranteeStatusChartProps) 
       {/* ── Sección 3: Gráfica de barras apiladas ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-title-medium">Tenencia de Garantías {year}</CardTitle>
+          <CardTitle className="text-sm sm:text-title-medium">Tenencia de Garantías {year}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
+        <CardContent className="px-2 sm:px-4 pb-4">
+          <ResponsiveContainer width="100%" height={300}>
             <BarChart
               data={data.chartData}
-              margin={{ top: 10, right: 20, left: 20, bottom: 5 }}
+              margin={{ top: 10, right: 10, left: 0, bottom: 50 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
               <XAxis
                 dataKey="weekLabel"
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 10 }}
                 angle={-45}
                 textAnchor="end"
-                height={60}
+                interval={1}
+                height={55}
               />
               <YAxis
-                tickFormatter={(v) => `${(v / 1_000_000).toFixed(1)}M`}
-                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
+                tick={{ fontSize: 10 }}
+                width={38}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend
+                iconType="square"
+                iconSize={10}
+                wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
                 formatter={(value) =>
                   value === 'scheduled' ? 'Programadas' :
                   value === 'naviera'   ? 'Naviera' : 'Operación'

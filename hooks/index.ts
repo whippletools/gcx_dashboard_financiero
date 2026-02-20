@@ -8,3 +8,4 @@ export { useFinancingTrend } from './useFinancingTrend';
 export { useOfficeSummary } from './useOfficeSummary';
 export { useGuaranteeStatus } from './useGuaranteeStatus';
 export { useGuaranteeTrend } from './useGuaranteeTrend';
+export { useGuaranteeAging } from './useGuaranteeAging';

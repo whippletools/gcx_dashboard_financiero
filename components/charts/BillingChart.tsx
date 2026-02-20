@@ -116,21 +116,20 @@ export function BillingChart({
 
   return (
     <Card className={className}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2">
         <div className="flex items-center gap-2">
-          <Receipt className="w-5 h-5 text-primary" />
-          <CardTitle className="text-title-large text-on-surface">
+          <Receipt className="w-5 h-5 text-primary flex-shrink-0" />
+          <CardTitle className="text-base sm:text-title-large text-on-surface">
             {title}
           </CardTitle>
         </div>
-        <div className="flex items-center gap-4">
-          {/* Aduana Filter */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-on-surface-variant" />
+            <Building2 className="w-4 h-4 text-on-surface-variant flex-shrink-0" />
             <select
               value={selectedAduanaId}
               onChange={(e) => handleAduanaChange(e.target.value)}
-              className="px-3 py-1.5 bg-surface-container rounded-lg text-body-medium text-on-surface border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary"
+              className="px-2 py-1.5 bg-surface-container rounded-lg text-xs sm:text-body-medium text-on-surface border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
             >
               <option value="all">Todas las aduanas</option>
               {data.aduanas.map((aduana) => (
@@ -140,17 +139,17 @@ export function BillingChart({
               ))}
             </select>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="text-label-medium text-on-surface-variant">Total Facturado</p>
-            <p className="text-headline-small text-on-surface font-semibold">
+            <p className="text-lg sm:text-headline-small text-on-surface font-semibold">
               {formatCurrency(totalGeneral)}
             </p>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-2 sm:px-6">
         {/* Chart */}
-        <div className="h-[400px] w-full">
+        <div className="h-[280px] sm:h-[380px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={chartData}

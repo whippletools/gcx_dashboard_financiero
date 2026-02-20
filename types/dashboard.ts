@@ -217,18 +217,21 @@ export interface MonthBillingData {
 }
 
 // ============================================
-// US-008: Tendencia Cartera Garantías
+// US-008: Tendencia Cartera Garantías (semanal, umbral 45 días)
 // ============================================
 export interface GuaranteeTrendData {
-  months: MonthGuaranteeTrend[];
+  weeks: WeekGuaranteeTrend[];
   tableData: GuaranteeTrendDetail[];
+  overdueThreshold: number; // 45 días
 }
 
-export interface MonthGuaranteeTrend {
-  month: number;
-  monthName: string;
-  overdue: number;
-  onTime: number;
+export interface WeekGuaranteeTrend {
+  weekNumber: number;
+  weekLabel: string;           // 'Sem.1', 'Sem.2', ...
+  date: string;                // fecha de corte (viernes)
+  garantiasEnProceso: number;  // En tiempo (≤45 días)
+  programado: number;          // Total cartera
+  overdue: number;             // Vencido (>45 días)
   total: number;
   overduePercentage: number;
 }
@@ -239,7 +242,7 @@ export interface GuaranteeTrendDetail {
   overdue: number;
   total: number;
   branch: string;
-  month: number;
+  weekLabel: string;
 }
 
 // ============================================

@@ -88,41 +88,40 @@ export function AgingAnalysis({
 
   return (
     <Card className={className}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2">
         <div className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-primary" />
-          <CardTitle className="text-title-large text-on-surface">
+          <Clock className="w-5 h-5 text-primary flex-shrink-0" />
+          <CardTitle className="text-base sm:text-title-large text-on-surface">
             {title}
           </CardTitle>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+          <div className="sm:text-right">
             <p className="text-label-medium text-on-surface-variant">Cartera Total</p>
-            <p className="text-headline-small text-on-surface font-semibold">
+            <p className="text-lg sm:text-headline-small text-on-surface font-semibold">
               {formatCurrency(data.summary.totalAmount)}
             </p>
           </div>
           <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100">
             <AlertTriangle className="w-4 h-4 text-orange-700" />
-            <span className="text-label-medium font-medium text-orange-700">
+            <span className="text-xs sm:text-label-medium font-medium text-orange-700">
               {data.summary.totalClients} clientes
             </span>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0 pb-4">
         {/* Layout principal: Tabla de rangos + Pie Chart lado a lado */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-3 sm:px-6 pt-2">
 
-          {/* Tabla de rangos (como la imagen) */}
-          <div>
-            <div className="overflow-hidden rounded-lg border border-outline-variant">
-              <table className="w-full">
+          {/* Tabla de rangos */}
+          <div className="overflow-x-auto rounded-lg border border-outline-variant min-w-0">
+            <table className="w-full min-w-[280px] text-xs sm:text-sm">
                 <thead>
                   <tr className="bg-blue-700 text-white">
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-white">Rango</th>
-                    <th className="text-right px-4 py-3 text-sm font-semibold text-white">Monto</th>
-                    <th className="text-right px-4 py-3 text-sm font-semibold text-white">%</th>
+                    <th className="text-left px-3 py-2 sm:px-4 sm:py-3 font-semibold">Rango</th>
+                    <th className="text-right px-3 py-2 sm:px-4 sm:py-3 font-semibold">Monto</th>
+                    <th className="text-right px-3 py-2 sm:px-4 sm:py-3 font-semibold">%</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
@@ -134,86 +133,81 @@ export function AgingAnalysis({
                       }`}
                       onClick={() => setSelectedRange(selectedRange === bucket.range ? null : bucket.range)}
                     >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
+                      <td className="px-3 py-2 sm:px-4 sm:py-3">
+                        <div className="flex items-center gap-2">
                           <div
-                            className="w-4 h-4 rounded flex-shrink-0"
+                            className="w-3 h-3 sm:w-4 sm:h-4 rounded flex-shrink-0"
                             style={{ backgroundColor: bucket.color }}
                           />
-                          <span className="text-sm font-medium text-on-surface">
+                          <span className="font-medium text-on-surface leading-tight">
                             {agingRiskColors[bucket.range].label}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-mono font-medium text-on-surface">
+                      <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-mono font-medium text-on-surface whitespace-nowrap">
                         {formatCurrency(bucket.amount)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <span
-                          className="text-sm font-bold"
-                          style={{ color: bucket.color }}
-                        >
+                      <td className="px-3 py-2 sm:px-4 sm:py-3 text-right whitespace-nowrap">
+                        <span className="font-bold" style={{ color: bucket.color }}>
                           {bucket.percentage.toFixed(1)}%
                         </span>
                       </td>
                     </tr>
                   ))}
-                  {/* Fila de total */}
                   <tr className="bg-muted/60 font-semibold border-t-2 border-outline-variant">
-                    <td className="px-4 py-3 text-sm font-bold text-on-surface">Total General</td>
-                    <td className="px-4 py-3 text-right text-sm font-mono font-bold text-on-surface">
+                    <td className="px-3 py-2 sm:px-4 sm:py-3 font-bold text-on-surface">Total General</td>
+                    <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-mono font-bold text-on-surface whitespace-nowrap">
                       {formatCurrency(data.summary.totalAmount)}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-bold text-on-surface">100%</td>
+                    <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-bold text-on-surface">100%</td>
                   </tr>
                 </tbody>
               </table>
-            </div>
           </div>
 
           {/* Pie Chart */}
-          <div className="flex flex-col items-center justify-center">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data.chartData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={110}
-                    dataKey="amount"
-                    nameKey="range"
-                    onClick={(entry) => setSelectedRange(selectedRange === entry.range ? null : entry.range as AgingRange)}
-                    label={({ percentage }) => `${percentage.toFixed(1)}%`}
-                    labelLine={true}
-                  >
-                    {data.chartData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={entry.color}
-                        stroke={selectedRange === entry.range ? chartColors.black : 'transparent'}
-                        strokeWidth={selectedRange === entry.range ? 3 : 0}
-                        style={{ cursor: 'pointer' }}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend
-                    verticalAlign="bottom"
-                    iconType="circle"
-                    formatter={(value: string) => agingRiskColors[value as AgingRange]?.label || value}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="h-[260px] sm:h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data.chartData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius="42%"
+                  dataKey="amount"
+                  nameKey="range"
+                  onClick={(entry) => setSelectedRange(selectedRange === entry.range ? null : entry.range as AgingRange)}
+                  label={({ percentage }) => `${percentage.toFixed(0)}%`}
+                  labelLine={true}
+                >
+                  {data.chartData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color}
+                      stroke={selectedRange === entry.range ? chartColors.black : 'transparent'}
+                      strokeWidth={selectedRange === entry.range ? 3 : 0}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend
+                  verticalAlign="bottom"
+                  iconType="circle"
+                  iconSize={10}
+                  wrapperStyle={{ fontSize: '11px' }}
+                  formatter={(value: string) => agingRiskColors[value as AgingRange]?.label || value}
+                />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
         {/* Botón para ver detalle por cliente */}
-        <div className="mt-6 pt-4 border-t border-outline-variant">
+        <div className="mt-4 pt-4 border-t border-outline-variant mx-3 sm:mx-6">
           <button
             onClick={() => setShowDetail(!showDetail)}
-            className="px-4 py-2 bg-primary-container text-on-primary-container rounded-full text-sm font-medium hover:bg-primary-container/80 transition-colors"
+            className="px-4 py-2 bg-primary-container text-on-primary-container rounded-full text-xs sm:text-sm font-medium hover:bg-primary-container/80 transition-colors"
           >
             {showDetail ? 'Ocultar detalle por cliente' : 'Ver detalle por cliente'}
           </button>

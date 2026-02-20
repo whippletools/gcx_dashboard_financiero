@@ -31,11 +31,11 @@ export default function RootLayout({
                 <Sidebar />
               </Suspense>
             </aside>
-            <div className="flex-1 md:ml-64">
+            <div className="flex-1 md:ml-64 min-w-0 overflow-x-hidden">
               <Suspense fallback={<div>Loading...</div>}>
                 <Header />
               </Suspense>
-              <main className="flex-1 p-6">{children}</main>
+              <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden min-w-0">{children}</main>
             </div>
           </div>
           <Analytics />
