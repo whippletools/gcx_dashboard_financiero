@@ -2,6 +2,8 @@ import { Suspense } from "react"
 import { FinancingOverview } from "@/components/financing/financing-overview"
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
+export const dynamic = 'force-dynamic'
+
 export default function FinancingPage() {
   return (
     <div className="space-y-6">

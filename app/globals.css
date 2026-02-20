@@ -42,6 +42,16 @@
   --trend-points: #2563eb; /* Blue for data points */
   --current-color: #16a34a; /* Green for "En Tiempo" */
   --overdue-color: #dc2626; /* Red for "Vencido" */
+  /* Material Design 3 surface tokens */
+  --surface: oklch(0.98 0.005 240);
+  --surface-variant: oklch(0.92 0.01 240);
+  --surface-container: oklch(0.95 0.005 240);
+  --surface-container-low: oklch(0.96 0.005 240);
+  --surface-container-high: oklch(0.93 0.005 240);
+  --surface-container-highest: oklch(0.90 0.01 240);
+  --on-surface: oklch(0.15 0.01 240);
+  --on-surface-variant: oklch(0.45 0.01 240);
+  --outline-variant: oklch(0.85 0.01 240);
   --radius: 0.625rem;
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -134,6 +144,15 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-surface: var(--surface);
+  --color-surface-variant: var(--surface-variant);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-outline-variant: var(--outline-variant);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

@@ -67,8 +67,8 @@ Este documento establece el plan de implementación para el Dashboard Financiero
 | 2 | **Antigüedad Cartera General** + tabla | ✅ Sí (dias/dias_vencidos, montos) | ⚠️ Gráfica Aging, sin tabla rangos exactos | **Parcial** | Alta |
 | 3 | **Tendencia Cartera CXC** (Vencido vs En tiempo) | ✅ Sí (Total, Vencido) | ⚠️ OverdueChart + CollectionTrendChart sin serie En tiempo clara | **Parcial** | Alta |
 | 4 | **Tendencia Financiamiento CxC DAC** | ✅ Sí (FINANCIAMIENTO/ANTICIPO, oficinas) | ⚠️ Gráfica financiamiento sin filtro DAC ni separación tipos | **Parcial** | Media |
-| 5 | **Estatus Garantías** (Programadas/Desviaciones/Operación) | ❌ No (falta campo en RECO) | ⚠️ Solo esqueleto /garantias | **No cubierto** | Alta |
-| 6 | **Antigüedad/Tendencia Cartera Garantías** | ⚠️ Parcial (no hay campo robusto garantía) | ❌ No implementado | **No cubierto** | Media |
+| 5 | **Estatus Garantías** (Programadas/Naviera/Operación) | ✅ Sí (fn_Garantias_Estatus disponible) | ⚠️ Solo esqueleto /garantias | **Listo para desarrollo** | Alta |
+| 6 | **Antigüedad/Tendencia Cartera Garantías** | ✅ Sí (fn_GarantiasPorCobrar disponible) | ❌ No implementado | **Listo para desarrollo** | Media |
 | 7 | **Resumen Corporativo por Oficina** | ✅ Sí (campos oficina en BD) | ❌ No hay vista por oficina | **No cubierto** | Alta |
 | 8 | **Módulo Facturación DAC** (honorarios vs resto) | ✅ Sí (TOTAL HON, TOTAL COMPL) | ❌ No hay módulo facturación | **No cubierto** | Media |
 
@@ -191,11 +191,14 @@ acceptance_criteria:
   - Dado que visualizo una barra, cuando reviso los colores, entonces azul=vencido y naranja=en tiempo
   - Dado que hago hover, cuando paso sobre un segmento, entonces veo monto y % del total
   - Dado que cambio de mes, cuando comparo, entonces puedo identificar tendencias de deterioro o mejora
+  - Dado que cargo la tabla detallada, cuando reviso los datos, entonces veo columnas: Cliente, RFC, Vigente, Vencido, Saldo, Sucursal
 
 technical_notes:
   data_source: "sp_Tendencia_cartera_CxC"
+  query_parameters: ["@Year INT", "@IdEmpresa INT"]
   derived_metric: "En tiempo = Total - Vencido"
-  ui_component: "OverdueTrendChart"
+  ui_component: "OverdueTrendChart + PortfolioTrendTable"
+  table_columns: ["Nombre", "RFC", "Vigente", "Vencido", "Saldo", "Sucursal", "Mes"]
   
 design_notes:
   material_component: "Stacked Bar Chart (M3)"
@@ -215,14 +218,17 @@ so_that: Controle el riesgo de financiamiento por unidad operativa
 
 acceptance_criteria:
   - Dado que selecciono una oficina DAC, cuando aplico filtro, entonces la gráfica muestra solo esa oficina
-  - Dado que visualizo la tendencia, cuando reviso las series, entonces veo "por facturar" y "facturado"
+  - Dado que visualizo la tendencia, cuando reviso las series, entonces veo "FinanciadoPTE" y "FinanciadoFAC"
   - Dado que comparo meses, cuando analizo, entonces puedo identificar patrones de facturación
   - Dado que no hay datos para una oficina, cuando selecciono, entonces muestro estado vacío
+  - Dado que cargo la tabla detallada, cuando reviso los datos, entonces veo columnas: Unidad, Oficina, FinanciadoPTE, FinanciadoFAC, Mes
 
 technical_notes:
   data_source: "sp_Tendencia_Financiamiento"
+  query_parameters: ["@Year INT", "@IdEmpresa INT"]
   filters: ["Oficina DAC", "Unidad"]
-  ui_component: "FinancingChart v2"
+  ui_component: "FinancingChart v2 + FinancingTrendTable"
+  table_columns: ["Unidad", "Oficina", "FinanciadoPTE", "FinanciadoFAC", "MES"]
   
 design_notes:
   material_component: "Grouped Bar Chart (M3)"
@@ -241,18 +247,20 @@ i_want: Ver tabla mensual con estatus de garantías y promedio
 so_that: Haga seguimiento al cumplimiento de garantías programadas
 
 acceptance_criteria:
-  - Dado que cargo el módulo, cuando visualizo, entonces veo tabla con columnas: Programadas, Desviaciones, Operación
+  - Dado que cargo el módulo, cuando visualizo, entonces veo tabla con columnas: Estatus, ImporteMN, Mes
   - Dado que hay garantías sin estatus, cuando reviso, entonces veo indicador de "Pendiente clasificar"
-  - Dado que selecciono un mes, cuando hago clic, entonces veo detalle de garantías
-  - Dado que calculo promedio, cuando reviso la última columna, entonces coincide con la fórmula: (Desviaciones + Operación) / Total
+  - Dado que selecciono un mes, cuando hago clic, entonces veo detalle de garantías por estatus
+  - Dado que calculo totales, cuando reviso la agrupación, entonces coincide con la suma por EstatusGarantia
 
 attention_blocker:
-  note: "Campo 'estatus_garantia' NO EXISTE en RECO actualmente"
-  action_required: "Solicitar a RECO agregar campo o crear mapeo temporal"
+  note: "Campo 'EstatusGarantia' YA EXISTE en fn_Garantias_Estatus - Valores: 1=Programadas, 2=Naviera, 3=Operacion"
+  status: "RESUELTO"
   
 technical_notes:
-  data_source: "sp_Estatus_Garantia" # Necesita campo estatus
-  dependency: "Campo estatus_garantia en BD RECO"
+  data_source: "sp_Estatus_Garantia"
+  query_parameters: ["@Year INT", "@IdEmpresa INT"]
+  field_mapping:
+    EstatusGarantia: "CASE nStatusGarantia: 1='Programadas', 2='Naviera', 3='Operacion'"
   ui_component: "GuaranteeStatusTable"
   
 design_notes:
@@ -318,6 +326,36 @@ design_notes:
     resto: "Gray-800"         # Parte superior
     promedio_line: "Orange-500"
   responsive_behavior: "Dropdown selector for aduana, chart scales responsively"
+```
+
+**US-008: Tendencia de la Cartera de Garantías**
+```yaml
+id: US-008
+title: Visualizar tendencia temporal de cartera de garantías vencida vs al día
+as_a: Gerente de Garantías
+i_want: Ver una gráfica de área/barras apiladas mensual con dos series para garantías
+so_that: Analice la evolución de garantías sanas vs vencidas durante el año
+
+acceptance_criteria:
+  - Dado que selecciono un año, cuando cargo la vista, entonces veo barras/apiladas por mes para garantías
+  - Dado que visualizo una barra, cuando reviso los colores, entonces azul=vencido y naranja=en tiempo
+  - Dado que hago hover, cuando paso sobre un segmento, entonces veo monto y % del total
+  - Dado que cargo la tabla detallada, cuando reviso los datos, entonces veo columnas: Proveedor, Vigente, Vencido, Saldo, Sucursal, Mes
+  - Dado que cambio de mes, cuando comparo, entonces puedo identificar tendencias de deterioro o mejora en garantías
+
+technical_notes:
+  data_source: "sp_Tendencia_cartera_Garantias"
+  query_parameters: ["@Year INT", "@IdEmpresa INT"]
+  derived_metric: "En tiempo = Saldo - Vencido"
+  ui_component: "GuaranteeTrendChart + GuaranteeTrendTable"
+  table_columns: ["Nombre", "Vigente", "Vencido", "Saldo", "Sucursal", "Mes"]
+  
+design_notes:
+  material_component: "Stacked Bar Chart (M3)"
+  color_scheme:
+    vencido: "Blue-500"      # #2196F3
+    en_tiempo: "Orange-500"  # #FF9800
+  responsive_behavior: "Vertical bars on desktop, horizontal scroll on mobile"
 ```
 
 #### 1.4 Entregables Fase 1
@@ -656,9 +694,9 @@ export interface MonthBillingData {
 | `sp_Antiguedad_cartera` | Distribución antigüedad | `@FechaCorte`, `@IdEmpresa` | Rangos 1-30, 31-60, 61-90, 91-120, 121-500 | `fn_CuentasPorCobrar_Excel` |
 | `sp_Tendencia_cartera_CxC` | Tendencia vencido vs vigente | `@Year`, `@IdEmpresa` | Meses con Vigente/Vencido | `fn_CuentasPorCobrar_Excel` |
 | `sp_Tendencia_Financiamiento` | Financiamiento por tipo | `@Year`, `@IdEmpresa` | FinanciadoPTE, FinanciadoFAC | `fn_Tendencia_Financiamiento` |
-| `sp_Estatus_Garantia` | Estatus garantías | Pendiente definir | Programadas, Desviaciones, Operación | **BLOQUEADO: Falta campo estatus_garantia** |
-| `sp_Antigüedad_cartera_garantias` | Antigüedad garantías | `@FechaCorte` | Similar a antigüedad general | **BLOQUEADO: Sin campo garantía robusto** |
-| `sp_Tendencia_cartera_Garantias` | Tendencia garantías | `@Year` | Vencido vs En tiempo garantías | **BLOQUEADO** |
+| `sp_Estatus_Garantia` | Estatus garantías mensual | `@Year`, `@IdEmpresa` | Estatus, ImporteMN, Mes | `fn_Garantias_Estatus` - Campo EstatusGarantia disponible |
+| `sp_Antigüedad_cartera_garantias` | Antigüedad garantías | `@FechaCorte`, `@IdEmpresa` | Similar a antigüedad general | `fn_GarantiasPorCobrar` |
+| `sp_Tendencia_cartera_Garantias` | Tendencia garantías | `@Year`, `@IdEmpresa` | Vencido vs En tiempo garantías | `fn_GarantiasPorCobrar` |
 | `sp_Facturacion` | Facturación por aduana | `@Year`, `@Aduana` | Honorarios vs Otros | `TOTAL HON`, `TOTAL COMPL` |
 | `sp_ResumenDG` | Resumen corporativo | `@FechaCorte` | Agregación por oficina | Campos `UD`, `AA` |
 
@@ -675,19 +713,20 @@ dependencies:
       blocking: [US-001]
       
     - id: DEP-002
-      description: "Campo 'estatus_garantia' en RECO"
-      status: "PENDIENTE - REQUIERE ANÁLISIS"
-      owner: "Equipo RECO + Negocio"
-      estimated_completion: "2-3 semanas"
-      blocking: [US-005, US-006]
-      mitigation: "Crear mapeo temporal basado en reglas de negocio"
+      description: "Campo 'EstatusGarantia' implementado en fn_Garantias_Estatus"
+      status: "COMPLETADO"
+      owner: "DBA RECO"
+      completion_date: "Disponible"
+      blocking: []
+      note: "Valores: 1=Programadas, 2=Naviera, 3=Operacion. SPs sp_Estatus_Garantia y sp_Tendencia_cartera_Garantias implementados."
       
     - id: DEP-003
       description: "Identificación robusta de facturas con garantía"
-      status: "PENDIENTE - INVESTIGACIÓN"
-      owner: "Analista Negocio + DBA"
-      estimated_completion: "1-2 semanas"
-      blocking: [US-006]
+      status: "COMPLETADO - fn_GarantiasPorCobrar disponible"
+      owner: "DBA RECO"
+      completion_date: "Disponible"
+      blocking: []
+      note: "Función fn_GarantiasPorCobrar implementada con saldos de garantías por proveedor"
       
   medium:
     - id: DEP-004
@@ -1422,7 +1461,7 @@ app/
 
 | Tarea | Story | Estimado | Responsable | Notas |
 |-------|-------|----------|-------------|-------|
-| Implementar GuaranteeStatusTable (US-005) | US-005 | 12h | Frontend | **Bloqueado por DEP-002** |
+| Implementar GuaranteeStatusTable (US-005) | US-005 | 12h | Frontend | Campo EstatusGarantia disponible |
 | Mock data garantías (workaround) | US-005 | 4h | Frontend | Si DEP-002 no está listo |
 | Implementar BillingModule (US-007) | US-007 | 16h | Frontend |
 | API Facturación por Aduana | US-007 | 8h | Backend |
@@ -1798,7 +1837,7 @@ monitoring:
 | US-002 Antigüedad Cartera | ✅ | ✅ | ✅ | ✅ | ✅ | **Covered** |
 | US-003 Tendencia CXC | ✅ | ✅ | ✅ | ✅ | ✅ | **Covered** |
 | US-004 Financiamiento DAC | ✅ | ✅ | ✅ | ✅ | ✅ | **Covered** |
-| US-005 Estatus Garantías | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | **Blocked** |
+| US-005 Estatus Garantías | ✅ | ✅ | ✅ | ✅ | ✅ | **Covered** |
 | US-006 Resumen Oficinas | ✅ | ✅ | ✅ | ✅ | ✅ | **Covered** |
 | US-007 Facturación DAC | ✅ | ✅ | ✅ | ✅ | ✅ | **Covered** |
 

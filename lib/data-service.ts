@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { executeQuery } from "@/lib/reco-api"
 import type { CobranzaData, CobranzaConAntiguedad, AgrupacionPorSucursal } from "@/lib/types"
 import {
   calcularDiasAntiguedad,
@@ -9,62 +9,128 @@ import {
   agruparPorAntiguedad,
 } from "@/lib/business-utils"
 
+function getTodayString(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+function mapRowToCobranzaData(row: any, index: number): CobranzaData {
+  return {
+    id: index + 1,
+    FecEnv: null,
+    "TOTAL HON": row.Honorarios || 0,
+    FecRecep: null,
+    Fecha: null,
+    Dias: row.Dias ?? row.DiasTranscurridos ?? 0,
+    Total: row.Saldo || 0,
+    ANTICIPO: 0,
+    "DIAS CR": row.DiasCredito || 0,
+    Tiempo: row.Tiempo || 0,
+    Vencido: row.Vencido || 0,
+    FINANCIAMIENTO: 0,
+    total_compl: row.Complementarios || 0,
+    Atencion: null,
+    RECIBIO: null,
+    PEDIDO: null,
+    "NO CLIENTE": null,
+    NOMBRE: row.Nombre || null,
+    rfc: row.RFC || null,
+    numero: null,
+    UD: row.Sucursal ?? row.NombreSucursal ?? null,
+    AA: null,
+    Cta: null,
+    TD: null,
+    "Pdto.": null,
+    Referen: null,
+    Cliente: row.Nombre || null,
+    TO: null,
+    CRED: null,
+    OBS: null,
+    "Bolet.": null,
+    Guia: null,
+  }
+}
+
 export async function getCobranzaData(): Promise<CobranzaData[]> {
-  const supabase = await createClient()
+  const fechaCorte = getTodayString()
+  const query = `
+    SELECT
+      Nombre, RFC, Saldo, Vencido, Tiempo,
+      DiasTranscurridos, DiasCredito,
+      NombreSucursal AS Sucursal,
+      Honorarios, Complementarios
+    FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', 1)
+    WHERE TipoCliente = 'Externo'
+  `
 
-  const { data, error } = await supabase.from("cobranza_raw").select("*").order("Fecha", { ascending: false })
+  const result = await executeQuery(query)
 
-  if (error) {
-    console.error("Error fetching cobranza data:", error)
+  if (!result.success || !result.data) {
+    console.error("Error fetching cobranza data via RECO:", result.error)
     return []
   }
 
-  return data || []
+  return result.data.map((row: any, i: number) => mapRowToCobranzaData(row, i))
 }
 
 export async function getKPIData(): Promise<any> {
-  const supabase = await createClient()
+  const fechaCorte = getTodayString()
+  const query = `
+    SELECT
+      SUM(Saldo) AS TotalSaldo,
+      SUM(Vencido) AS TotalVencido,
+      SUM(Tiempo) AS TotalTiempo,
+      AVG(DiasTranscurridos) AS PromDias,
+      COUNT(*) AS Total
+    FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', 1)
+    WHERE TipoCliente = 'Externo'
+  `
 
-  const { data, error } = await supabase.from("cobranza_raw").select("Total, Vencido, FINANCIAMIENTO, ANTICIPO, Dias")
+  const result = await executeQuery(query)
 
-  if (error) {
-    console.error("Error fetching KPI data:", error)
+  if (!result.success || !result.data || result.data.length === 0) {
+    console.error("Error fetching KPI data via RECO:", result.error)
     return null
   }
 
-  const totalAmount = data?.reduce((sum, item) => sum + (item.Total || 0), 0) || 0
-  const totalOverdue = data?.reduce((sum, item) => sum + (item.Vencido || 0), 0) || 0
-  const totalFinancing = data?.reduce((sum, item) => sum + (item.FINANCIAMIENTO || 0), 0) || 0
-  const totalAdvance = data?.reduce((sum, item) => sum + (item.ANTICIPO || 0), 0) || 0
-  const avgDays = data?.reduce((sum, item) => sum + (item.Dias || 0), 0) / (data?.length || 1) || 0
+  const row = result.data[0]
+  const totalAmount = row.TotalSaldo || 0
+  const totalOverdue = row.TotalVencido || 0
 
   return {
     totalAmount,
     totalOverdue,
-    totalFinancing,
-    totalAdvance,
-    avgDays,
+    totalFinancing: 0,
+    totalAdvance: 0,
+    avgDays: Math.round(row.PromDias || 0),
     overduePercentage: totalAmount > 0 ? (totalOverdue / totalAmount) * 100 : 0,
   }
 }
 
 export async function getClientData(clientId?: string): Promise<CobranzaData[]> {
-  const supabase = await createClient()
+  const fechaCorte = getTodayString()
+  const whereClause = clientId
+    ? `WHERE TipoCliente = 'Externo' AND RFC = '${clientId.replace(/'/g, "''")}'`
+    : `WHERE TipoCliente = 'Externo'`
 
-  let query = supabase.from("cobranza_raw").select("*")
+  const query = `
+    SELECT
+      Nombre, RFC, Saldo, Vencido, Tiempo,
+      DiasTranscurridos, DiasCredito,
+      NombreSucursal AS Sucursal,
+      Honorarios, Complementarios
+    FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', 1)
+    ${whereClause}
+  `
 
-  if (clientId) {
-    query = query.eq("NO CLIENTE", clientId)
-  }
+  const result = await executeQuery(query)
 
-  const { data, error } = await query.order("Fecha", { ascending: false })
-
-  if (error) {
-    console.error("Error fetching client data:", error)
+  if (!result.success || !result.data) {
+    console.error("Error fetching client data via RECO:", result.error)
     return []
   }
 
-  return data || []
+  return result.data.map((row: any, i: number) => mapRowToCobranzaData(row, i))
 }
 
 /**

@@ -1,99 +1,118 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { KPIGrid } from "./kpi-grid"
-import { ChartSection } from "./chart-section"
-import { PortfolioAging } from "./portfolio-aging"
-import { DashboardSkeleton } from "./dashboard-skeleton"
+import Link from "next/link"
+import { TrendingUp, PieChart, DollarSign, Building2, Shield, FileText, ArrowRight, CheckCircle2, Clock } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
-interface KPIData {
-  totalAmount: number
-  totalOverdue: number
-  totalFinancing: number
-  totalAdvance: number
-  avgDays: number
-  overduePercentage: number
-}
-
-interface CobranzaRecord {
-  id: string
-  cliente: string
-  monto: number
-  fecha_vencimiento: string
-  estado: string
-  dias_vencido: number
-  tipo_operacion: string
-  garantia: string
-  [key: string]: any
-}
-
-interface AgingData {
-  rango: string
-  monto: number
-  porcentaje: number
-  color: string
-}
+const modules = [
+  {
+    name: "Cobranza",
+    description: "Tendencia mensual de cobrado con comparativo año anterior",
+    href: "/cobranza",
+    icon: TrendingUp,
+    color: "bg-purple-100",
+    iconColor: "text-purple-700",
+    status: "active",
+    us: "US-001",
+  },
+  {
+    name: "Cartera",
+    description: "Antigüedad de cartera con rangos exactos y detalle por cliente",
+    href: "/cartera",
+    icon: PieChart,
+    color: "bg-green-100",
+    iconColor: "text-green-700",
+    status: "active",
+    us: "US-002",
+  },
+  {
+    name: "Financiamiento",
+    description: "Tendencia de financiamiento CxC DAC por facturar vs facturado",
+    href: "/financiamiento",
+    icon: DollarSign,
+    color: "bg-purple-100",
+    iconColor: "text-purple-700",
+    status: "pending",
+    us: "US-004",
+  },
+  {
+    name: "Oficinas",
+    description: "Resumen corporativo de cartera por oficina con métricas clave",
+    href: "/oficinas",
+    icon: Building2,
+    color: "bg-blue-100",
+    iconColor: "text-blue-700",
+    status: "pending",
+    us: "US-007",
+  },
+  {
+    name: "Garantías",
+    description: "Estatus y tendencia de cartera de garantías",
+    href: "/garantias",
+    icon: Shield,
+    color: "bg-green-100",
+    iconColor: "text-green-700",
+    status: "pending",
+    us: "US-005/006",
+  },
+  {
+    name: "Facturación",
+    description: "Facturación mensual por aduanas DAC — honorarios vs resto",
+    href: "/facturacion",
+    icon: FileText,
+    color: "bg-orange-100",
+    iconColor: "text-orange-700",
+    status: "pending",
+    us: "US-008",
+  },
+]
 
 export function DashboardOverview() {
-  const [kpiData, setKpiData] = useState<KPIData | null>(null)
-  const [cobranzaData, setCobranzaData] = useState<CobranzaRecord[]>([])
-  const [agingData, setAgingData] = useState<AgingData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [kpiResponse, cobranzaResponse, agingResponse] = await Promise.all([
-          fetch("/api/dashboard/kpis"),
-          fetch("/api/dashboard/cobranza"),
-          fetch("/api/dashboard/aging"),
-        ])
-
-        if (!kpiResponse.ok || !cobranzaResponse.ok || !agingResponse.ok) {
-          throw new Error("Failed to fetch dashboard data")
-        }
-
-        const kpiResult = await kpiResponse.json()
-        const cobranzaResult = await cobranzaResponse.json()
-        const agingResult = await agingResponse.json()
-
-        if (kpiResult.error || cobranzaResult.error || agingResult.error) {
-          throw new Error(kpiResult.error || cobranzaResult.error || agingResult.error)
-        }
-
-        setKpiData(kpiResult)
-        setCobranzaData(cobranzaResult)
-        setAgingData(agingResult)
-      } catch (err) {
-        console.error("[v0] Error loading dashboard data:", err)
-        setError("Error loading dashboard data")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [])
-
-  const handleKPIClick = (kpi: string) => {
-    console.log(`[v0] KPI clicked: ${kpi}`)
-    // TODO: Implement drill-down functionality
-  }
-
-  if (loading) {
-    return <DashboardSkeleton />
-  }
-
-  if (error || !kpiData) {
-    return <div className="text-center text-red-500 p-4">{error || "Error loading dashboard data"}</div>
-  }
-
   return (
     <div className="space-y-6">
-      <KPIGrid data={kpiData} onKPIClick={handleKPIClick} />
-      <ChartSection data={cobranzaData} />
-      <PortfolioAging data={agingData} />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {modules.map((mod) => {
+          const Icon = mod.icon
+          const isActive = mod.status === "active"
+          return (
+            <Link key={mod.href} href={mod.href}>
+              <Card className={`h-full transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer border ${isActive ? "border-primary/30 hover:border-primary/60" : "border-border hover:border-border/80"}`}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className={`p-2 rounded-lg ${mod.color}`}>
+                      <Icon className={`w-5 h-5 ${mod.iconColor}`} />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {isActive ? (
+                        <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Activo
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                          <Clock className="w-3 h-3" />
+                          Próximo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <CardTitle className="text-base font-semibold">{mod.name}</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">{mod.us}</p>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <CardDescription className="text-sm leading-relaxed">{mod.description}</CardDescription>
+                  <div className="flex items-center gap-1 mt-4 text-xs font-medium text-primary">
+                    {isActive ? "Ver módulo" : "Ver avance"}
+                    <ArrowRight className="w-3 h-3" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
+      </div>
     </div>
   )
 }

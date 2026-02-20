@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { getDistribucionAntiguedad } from "@/lib/data-service"
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const distribucion = await getDistribucionAntiguedad()

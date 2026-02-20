@@ -6,6 +6,7 @@ import "./globals.css"
 import { Header } from "@/components/layout/header"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Suspense } from "react"
+import { Providers } from "@/components/providers"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
@@ -21,22 +22,24 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={inter.variable}>
+    <html lang="es" className={inter.variable} suppressHydrationWarning>
       <body className="font-sans">
-        <div className="flex min-h-screen">
-          <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 bg-card border-r">
-            <Suspense fallback={<div>Loading...</div>}>
-              <Sidebar />
-            </Suspense>
-          </aside>
-          <div className="flex-1 md:ml-64">
-            <Suspense fallback={<div>Loading...</div>}>
-              <Header />
-            </Suspense>
-            <main className="flex-1 p-6">{children}</main>
+        <Providers>
+          <div className="flex min-h-screen">
+            <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 bg-card border-r">
+              <Suspense fallback={<div>Loading...</div>}>
+                <Sidebar />
+              </Suspense>
+            </aside>
+            <div className="flex-1 md:ml-64 min-w-0 overflow-x-hidden">
+              <Suspense fallback={<div>Loading...</div>}>
+                <Header />
+              </Suspense>
+              <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden min-w-0">{children}</main>
+            </div>
           </div>
-        </div>
-        <Analytics />
+          <Analytics />
+        </Providers>
       </body>
     </html>
   )

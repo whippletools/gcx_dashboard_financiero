@@ -2,6 +2,8 @@ import { Suspense } from "react"
 import { PortfolioOverview } from "@/components/portfolio/portfolio-overview"
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
+export const dynamic = 'force-dynamic'
+
 export default function PortfolioPage() {
   return (
     <div className="space-y-6">

@@ -2,6 +2,8 @@ import { Suspense } from "react"
 import { GuaranteesOverview } from "@/components/guarantees/guarantees-overview"
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
+export const dynamic = 'force-dynamic'
+
 export default function GuaranteesPage() {
   return (
     <div className="space-y-6">
