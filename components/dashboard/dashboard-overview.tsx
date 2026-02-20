@@ -1,147 +1,118 @@
 "use client"
 
-import { useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { KPIGrid } from "./kpi-grid"
-import { DashboardSkeleton } from "./dashboard-skeleton"
-import { CollectionTrendChart } from "@/components/charts/CollectionTrendChart"
-import { AgingAnalysis } from "@/components/charts/AgingAnalysis"
-import { PortfolioTrendChart } from "@/components/charts/PortfolioTrendChart"
-import { FinancingTrendChart } from "@/components/charts/FinancingTrendChart"
-import { OfficeSummaryTable } from "@/components/tables/OfficeSummaryTable"
-import { GuaranteeStatusTable } from "@/components/tables/GuaranteeStatusTable"
-import { GuaranteeTrendChart } from "@/components/charts/GuaranteeTrendChart"
-import { BillingChart } from "@/components/charts/BillingChart"
-import { useCollectionTrend, useAgingData, usePortfolioTrend, useFinancingTrend, useOfficeSummary, useGuaranteeStatus, useGuaranteeTrend } from "@/hooks"
+import Link from "next/link"
+import { TrendingUp, PieChart, DollarSign, Building2, Shield, FileText, ArrowRight, CheckCircle2, Clock } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+
+const modules = [
+  {
+    name: "Cobranza",
+    description: "Tendencia mensual de cobrado con comparativo año anterior",
+    href: "/cobranza",
+    icon: TrendingUp,
+    color: "bg-purple-100",
+    iconColor: "text-purple-700",
+    status: "active",
+    us: "US-001",
+  },
+  {
+    name: "Cartera",
+    description: "Antigüedad de cartera con rangos exactos y detalle por cliente",
+    href: "/cartera",
+    icon: PieChart,
+    color: "bg-green-100",
+    iconColor: "text-green-700",
+    status: "active",
+    us: "US-002",
+  },
+  {
+    name: "Financiamiento",
+    description: "Tendencia de financiamiento CxC DAC por facturar vs facturado",
+    href: "/financiamiento",
+    icon: DollarSign,
+    color: "bg-purple-100",
+    iconColor: "text-purple-700",
+    status: "pending",
+    us: "US-004",
+  },
+  {
+    name: "Oficinas",
+    description: "Resumen corporativo de cartera por oficina con métricas clave",
+    href: "/oficinas",
+    icon: Building2,
+    color: "bg-blue-100",
+    iconColor: "text-blue-700",
+    status: "pending",
+    us: "US-007",
+  },
+  {
+    name: "Garantías",
+    description: "Estatus y tendencia de cartera de garantías",
+    href: "/garantias",
+    icon: Shield,
+    color: "bg-green-100",
+    iconColor: "text-green-700",
+    status: "pending",
+    us: "US-005/006",
+  },
+  {
+    name: "Facturación",
+    description: "Facturación mensual por aduanas DAC — honorarios vs resto",
+    href: "/facturacion",
+    icon: FileText,
+    color: "bg-orange-100",
+    iconColor: "text-orange-700",
+    status: "pending",
+    us: "US-008",
+  },
+]
 
 export function DashboardOverview() {
-  const currentYear = new Date().getFullYear() // Volver al año actual dinámico
-  const [selectedYear, setSelectedYear] = useState(currentYear)
-  const [selectedOffice, setSelectedOffice] = useState<string | undefined>(undefined)
-
-  // Hooks para datos - DESHABILITADOS TEMPORALMENTE para depurar Tendencia de Cobrado
-  const { data: collectionData, isLoading: isLoadingCollection } = useCollectionTrend({ year: selectedYear, idEmpresa: 1 })
-  
-  const todayStr = new Date().toISOString().split('T')[0]
-  // US-002: Antigüedad de Cartera - ACTIVO
-  const { data: agingData, isLoading: isLoadingAging } = useAgingData({ fechaCorte: todayStr, idEmpresa: 1 })
-  // const { data: portfolioData, isLoading: isLoadingPortfolio } = usePortfolioTrend({ year: selectedYear, idEmpresa: 1 })
-  // const { data: financingData, isLoading: isLoadingFinancing } = useFinancingTrend({ year: selectedYear, idEmpresa: 1, officeId: selectedOffice })
-  // const { data: officeSummaryData, isLoading: isLoadingOffices } = useOfficeSummary({ fechaCorte: todayStr, idEmpresa: 1 })
-  // const { data: guaranteeStatusData, isLoading: isLoadingGuaranteeStatus } = useGuaranteeStatus({ year: selectedYear, idEmpresa: 1 })
-  // const { data: guaranteeTrendData, isLoading: isLoadingGuaranteeTrend } = useGuaranteeTrend({ year: selectedYear, idEmpresa: 1 })
-
-  // Mock data temporal para US pendientes
-  const isLoadingPortfolio = false, isLoadingFinancing = false, isLoadingOffices = false, isLoadingGuaranteeStatus = false, isLoadingGuaranteeTrend = false;
-  const portfolioData = { currentYear: [], previousYear: [] } as any;
-  const financingData = { currentYear: [], previousYear: [], details: [], offices: [], units: [] } as any;
-  const officeSummaryData: any[] = [];
-  const guaranteeStatusData = { currentYear: [], previousYear: [], details: [] } as any;
-  const guaranteeTrendData = { currentYear: [], previousYear: [], details: [] } as any;
-
-  // Solo US-001 bloquea el skeleton global - cada tab maneja su propio loading
-  const isLoading = isLoadingCollection
-
-  if (isLoading) {
-    return <DashboardSkeleton />
-  }
-
   return (
     <div className="space-y-6">
-      {/* Year Selector */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <label className="text-body-medium text-on-surface-variant">Año:</label>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="px-3 py-2 bg-surface-container rounded-lg border border-outline-variant text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            {Array.from({ length: 5 }, (_, i) => currentYear - i).map((yr) => (
-              <option key={yr} value={yr}>{yr}</option>
-            ))}
-          </select>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {modules.map((mod) => {
+          const Icon = mod.icon
+          const isActive = mod.status === "active"
+          return (
+            <Link key={mod.href} href={mod.href}>
+              <Card className={`h-full transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer border ${isActive ? "border-primary/30 hover:border-primary/60" : "border-border hover:border-border/80"}`}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className={`p-2 rounded-lg ${mod.color}`}>
+                      <Icon className={`w-5 h-5 ${mod.iconColor}`} />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {isActive ? (
+                        <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Activo
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                          <Clock className="w-3 h-3" />
+                          Próximo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <CardTitle className="text-base font-semibold">{mod.name}</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">{mod.us}</p>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <CardDescription className="text-sm leading-relaxed">{mod.description}</CardDescription>
+                  <div className="flex items-center gap-1 mt-4 text-xs font-medium text-primary">
+                    {isActive ? "Ver módulo" : "Ver avance"}
+                    <ArrowRight className="w-3 h-3" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
       </div>
-
-      <Tabs defaultValue="cobranza" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
-          <TabsTrigger value="cobranza">Cobranza</TabsTrigger>
-          <TabsTrigger value="cartera">Cartera</TabsTrigger>
-          <TabsTrigger value="financiamiento">Financiamiento</TabsTrigger>
-          <TabsTrigger value="oficinas">Oficinas</TabsTrigger>
-          <TabsTrigger value="garantias">Garantías</TabsTrigger>
-          <TabsTrigger value="facturacion">Facturación</TabsTrigger>
-        </TabsList>
-
-        {/* Tab: Cobranza */}
-        <TabsContent value="cobranza" className="space-y-6">
-          <div className="grid gap-6">
-            {collectionData && (
-              <CollectionTrendChart data={collectionData} />
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Tab: Cartera - US-002 */}
-        <TabsContent value="cartera" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-1">
-            {isLoadingAging ? (
-              <div className="flex items-center justify-center h-64 text-on-surface-variant">Cargando antigüedad de cartera...</div>
-            ) : agingData ? (
-              <AgingAnalysis data={agingData} />
-            ) : (
-              <div className="flex items-center justify-center h-64 text-on-surface-variant">Sin datos de antigüedad disponibles</div>
-            )}
-            {/* PortfolioTrendChart - US-003 pendiente */}
-          </div>
-        </TabsContent>
-
-        {/* Tab: Financiamiento */}
-        <TabsContent value="financiamiento" className="space-y-6">
-          <div className="grid gap-6">
-            {financingData && (
-              <FinancingTrendChart 
-                data={financingData} 
-                onOfficeChange={setSelectedOffice}
-              />
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Tab: Oficinas */}
-        <TabsContent value="oficinas" className="space-y-6">
-          <div className="grid gap-6">
-            {officeSummaryData && (
-              <OfficeSummaryTable data={officeSummaryData} />
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Tab: Garantías */}
-        <TabsContent value="garantias" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-1">
-            {guaranteeStatusData && (
-              <GuaranteeStatusTable data={guaranteeStatusData} />
-            )}
-            {guaranteeTrendData && (
-              <GuaranteeTrendChart data={guaranteeTrendData} />
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Tab: Facturación */}
-        <TabsContent value="facturacion" className="space-y-6">
-          <div className="grid gap-6">
-            <BillingChart 
-              data={{ 
-                aduanas: [], 
-                months: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'] 
-              }} 
-            />
-          </div>
-        </TabsContent>
-      </Tabs>
     </div>
   )
 }

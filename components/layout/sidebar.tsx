@@ -7,35 +7,44 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { PieChart, Menu, Home, CreditCard, DollarSign } from "lucide-react"
+import { LayoutDashboard, Menu, TrendingUp, PieChart, DollarSign, Building2, Shield, FileText } from "lucide-react"
 
 const navigation = [
   {
     name: "Dashboard Principal",
     href: "/",
-    icon: Home,
+    icon: LayoutDashboard,
   },
-  // Ocultos temporalmente - se habilitarán cuando las vistas individuales estén listas
-  /*{
+  {
+    name: "Cobranza",
+    href: "/cobranza",
+    icon: TrendingUp,
+  },
+  {
     name: "Cartera",
-    href: "/portfolio",
+    href: "/cartera",
     icon: PieChart,
   },
   {
-    name: "Garantías",
-    href: "/guarantees",
-    icon: CreditCard,
-  },
-  {
     name: "Financiamiento",
-    href: "/financing",
+    href: "/financiamiento",
     icon: DollarSign,
   },
   {
-    name: "Reportes",
-    href: "/reports",
+    name: "Oficinas",
+    href: "/oficinas",
+    icon: Building2,
+  },
+  {
+    name: "Garantías",
+    href: "/garantias",
+    icon: Shield,
+  },
+  {
+    name: "Facturación",
+    href: "/facturacion",
     icon: FileText,
-  },*/
+  },
 ]
 
 interface SidebarProps {
