@@ -23,24 +23,24 @@ export function DashboardOverview() {
   const { data: collectionData, isLoading: isLoadingCollection } = useCollectionTrend({ year: selectedYear, idEmpresa: 1 })
   
   const todayStr = new Date().toISOString().split('T')[0]
-  // const { data: agingData, isLoading: isLoadingAging } = useAgingData({ fechaCorte: todayStr, idEmpresa: 1 })
+  // US-002: Antigüedad de Cartera - ACTIVO
+  const { data: agingData, isLoading: isLoadingAging } = useAgingData({ fechaCorte: todayStr, idEmpresa: 1 })
   // const { data: portfolioData, isLoading: isLoadingPortfolio } = usePortfolioTrend({ year: selectedYear, idEmpresa: 1 })
   // const { data: financingData, isLoading: isLoadingFinancing } = useFinancingTrend({ year: selectedYear, idEmpresa: 1, officeId: selectedOffice })
   // const { data: officeSummaryData, isLoading: isLoadingOffices } = useOfficeSummary({ fechaCorte: todayStr, idEmpresa: 1 })
   // const { data: guaranteeStatusData, isLoading: isLoadingGuaranteeStatus } = useGuaranteeStatus({ year: selectedYear, idEmpresa: 1 })
   // const { data: guaranteeTrendData, isLoading: isLoadingGuaranteeTrend } = useGuaranteeTrend({ year: selectedYear, idEmpresa: 1 })
 
-  // Mock data temporal para evitar errores en componentes
-  const isLoadingAging = false, isLoadingPortfolio = false, isLoadingFinancing = false, isLoadingOffices = false, isLoadingGuaranteeStatus = false, isLoadingGuaranteeTrend = false;
-  const agingData = { summary: { total: 0, current: 0, overdue: 0 }, buckets: [] } as any;
+  // Mock data temporal para US pendientes
+  const isLoadingPortfolio = false, isLoadingFinancing = false, isLoadingOffices = false, isLoadingGuaranteeStatus = false, isLoadingGuaranteeTrend = false;
   const portfolioData = { currentYear: [], previousYear: [] } as any;
   const financingData = { currentYear: [], previousYear: [], details: [], offices: [], units: [] } as any;
   const officeSummaryData: any[] = [];
   const guaranteeStatusData = { currentYear: [], previousYear: [], details: [] } as any;
   const guaranteeTrendData = { currentYear: [], previousYear: [], details: [] } as any;
 
-  const isLoading = isLoadingCollection || isLoadingAging || isLoadingPortfolio || isLoadingFinancing || 
-                    isLoadingOffices || isLoadingGuaranteeStatus || isLoadingGuaranteeTrend
+  // Solo US-001 bloquea el skeleton global - cada tab maneja su propio loading
+  const isLoading = isLoadingCollection
 
   if (isLoading) {
     return <DashboardSkeleton />
@@ -83,15 +83,17 @@ export function DashboardOverview() {
           </div>
         </TabsContent>
 
-        {/* Tab: Cartera */}
+        {/* Tab: Cartera - US-002 */}
         <TabsContent value="cartera" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-1">
-            {agingData && (
+            {isLoadingAging ? (
+              <div className="flex items-center justify-center h-64 text-on-surface-variant">Cargando antigüedad de cartera...</div>
+            ) : agingData ? (
               <AgingAnalysis data={agingData} />
+            ) : (
+              <div className="flex items-center justify-center h-64 text-on-surface-variant">Sin datos de antigüedad disponibles</div>
             )}
-            {portfolioData && (
-              <PortfolioTrendChart data={portfolioData} />
-            )}
+            {/* PortfolioTrendChart - US-003 pendiente */}
           </div>
         </TabsContent>
 

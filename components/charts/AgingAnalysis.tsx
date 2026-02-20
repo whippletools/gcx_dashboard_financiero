@@ -127,6 +127,20 @@ export function AgingAnalysis({
       width: '12%',
       cellClassName: 'bg-red-50 text-red-700 font-medium',
     },
+    {
+      key: 'total',
+      label: 'Total',
+      sortable: true,
+      align: 'right' as const,
+      format: 'currency' as const,
+      width: '12%',
+    },
+    {
+      key: 'branch',
+      label: 'Sucursal',
+      sortable: true,
+      width: '12%',
+    },
   ];
 
   return (

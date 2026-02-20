@@ -1,6 +1,6 @@
 # Tracking Dashboard GCX - Tareas por User Story
 
-> **Enfoque actual**: US-001 - Tendencia de Cobrado
+> **Enfoque actual**: US-002 - Antigüedad de Cartera
 > **Estrategia**: Trabajar una tabla a la vez hasta obtener datos correctos antes de pasar a la siguiente
 
 ---
@@ -9,8 +9,8 @@
 
 | ID | User Story | Estado | Prioridad | Blockers |
 |----|-----------|--------|-----------|----------|
-| US-001 | **Tendencia de Cobrado** (comparativo año pasado) | 🔴 **EN PROCESO** | Alta | Timeout en consultas meses 3-12 |
-| US-002 | Antigüedad Cartera General + tabla | ⚪ Pendiente | Alta | - |
+| US-001 | **Tendencia de Cobrado** (comparativo año pasado) | ✅ **TERMINADO** | Alta | - |
+| US-002 | Antigüedad Cartera General + tabla | 🔴 **EN PROCESO** | Alta | Verificar datos reales de API RECO |
 | US-003 | Tendencia Cartera CXC (Vencido vs En tiempo) | ⚪ Pendiente | Alta | - |
 | US-004 | Tendencia Financiamiento CxC DAC | ⚪ Pendiente | Media | - |
 | US-005 | Estatus Garantías | ⚪ Pendiente | Alta | - |
@@ -108,13 +108,98 @@ Si la gráfica se ve correcta con datos de 2025, marcaremos US-001 como completa
 
 ---
 
-## 🚀 Próximos Pasos Inmediatos
+## � US-002: Antigüedad de Cartera - Tareas Detalladas
 
-1. **Verificar datos reales**: Ejecutar query manual para marzo 2026 en BD
-2. **Si hay datos**: El problema es timeout → necesitamos optimización SQL o Plan Pro Netlify
-3. **Si no hay datos**: El problema es período fiscal → ajustar año a 2025 o 2024
-4. **Decidir**: ¿Continuar con hotfix temporal o requerir optimización SQL del DBA?
+### Especificación (del SDD)
+- **Fuente de datos**: `fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)`
+- **Rangos**: 1-30, 31-60, 61-90, 91-120, 121+ días
+- **Componentes**: PieChart (5 segmentos con colores por riesgo) + DataTable filtrable por rango
+- **Colores**: Verde (bajo riesgo) → Rojo oscuro (crítico)
+
+### Arquitectura Implementada
+
+```
+GET /api/antiguedad-cartera?fechaCorte=YYYY-MM-DD&idEmpresa=1
+  └── fn_CuentasPorCobrar_Excel (API RECO)
+      └── Filtra TipoCliente = 'Externo'
+          └── Agrupa por RFC/Cliente
+              └── Calcula buckets por DiasTranscurridos
+```
+
+### Tareas de Implementación
+
+#### Fase 1: Backend API (Completado)
+- [x] Crear `/api/antiguedad-cartera/route.ts`
+- [x] Query a `fn_CuentasPorCobrar_Excel` con filtro `TipoCliente = 'Externo'`
+- [x] Calcular `AgingBuckets` (5 rangos) en el servidor
+- [x] Calcular `AgingDetails` agrupados por RFC/Cliente
+- [x] Calcular `AgingSummary` (totalAmount, totalClients, averageDays)
+- [x] Usar `executeQueryWithRetry` con cache
+
+#### Fase 2: Frontend Hook (Completado)
+- [x] Crear `hooks/useAgingData.ts` con React Query
+- [x] `staleTime: 5min`, `gcTime: 10min`
+- [x] Parámetros: `fechaCorte` (hoy por defecto) + `idEmpresa`
+
+#### Fase 3: Componente UI (Completado)
+- [x] Crear `components/charts/AgingAnalysis.tsx`
+- [x] PieChart con 5 segmentos clicables
+- [x] Botones de filtro por rango (Todos / 1-30 / 31-60 / 61-90 / 91-120 / 121+)
+- [x] DataTable con columnas: Cliente, RFC, 1-30, 31-60, 61-90, 91-120, 121+, **Total**, Sucursal
+- [x] Summary cards al pie con totales por rango
+- [x] Tooltip personalizado con monto, % y nivel de riesgo
+
+#### Fase 4: Integración en Dashboard (Completado)
+- [x] Activar `useAgingData` en `dashboard-overview.tsx` (descomentado)
+- [x] Reemplazar mock data por datos reales en Tab "Cartera"
+- [x] Agregar estado de carga (loading) y estado vacío
+
+#### Fase 5: Verificación de Datos (Pendiente)
+- [ ] Verificar que la API devuelve datos reales de `fn_CuentasPorCobrar_Excel`
+- [ ] Confirmar que `DiasTranscurridos` mapea correctamente a los rangos
+- [ ] Validar que los totales del PieChart coinciden con la tabla
+- [ ] Probar filtro por rango (clic en segmento del pie)
+- [ ] Verificar responsive en móvil
+
+### Criterios de Aceptación US-002
+- [ ] PieChart muestra 5 segmentos con datos reales (no ceros)
+- [ ] Clic en segmento filtra la tabla debajo
+- [ ] Tabla muestra: Cliente, RFC, montos por rango, Total, Sucursal
+- [ ] Totales de tabla coinciden con totales del PieChart
+- [ ] Tiempo de carga < 10 segundos (límite Netlify)
+- [ ] Funciona con filtro de sucursal (si aplica)
+
+### Notas Técnicas
+```
+Función: fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
+Columnas usadas: Nombre, RFC, Saldo (→Total), DiasTranscurridos (→Dias), NombreSucursal
+Filtro: TipoCliente = 'Externo'
+Agrupación: Por RFC (un cliente puede tener múltiples facturas en diferentes rangos)
+```
 
 ---
 
-*Última actualización: 2025-02-19 11:55am*
+## 📋 Historial de Cambios
+
+| Fecha | US | Cambio | Resultado |
+|-------|-----|--------|-----------|
+| 2026-02-19 | US-001 | Timeout 5s → 9s | Reduce aborts |
+| 2026-02-19 | US-001 | Batch_SIZE 2 → 1 | Consultas secuenciales |
+| 2026-02-19 | US-001 | 12 meses → 6 meses | Evita timeout Netlify |
+| 2026-02-19 | US-001 | Agregado executeQueryWithRetry | Retry automático |
+| 2026-02-19 | US-001 | Frontend-driven fetch por mes | Evita timeout de 10s |
+| 2026-02-19 | US-002 | Activar useAgingData en dashboard | Hook conectado a API real |
+| 2026-02-19 | US-002 | Agregar columnas Total + Sucursal en AgingAnalysis | Tabla más completa |
+
+---
+
+## 🚀 Próximos Pasos
+
+1. **Verificar US-002**: Abrir tab "Cartera" y confirmar que el PieChart muestra datos reales
+2. **Si hay datos**: Marcar US-002 como terminado y pasar a US-003
+3. **Si hay timeout**: Aplicar mismo patrón que US-001 (fetch por mes/período)
+4. **US-003 siguiente**: Tendencia Cartera CXC (Vencido vs En tiempo)
+
+---
+
+*Última actualización: 2026-02-19*
