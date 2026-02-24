@@ -140,19 +140,36 @@ export function PortfolioTrendChart({
               {formatCurrency(totalPortfolio / 12)}
             </p>
           </div>
-          <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${
-            avgOverduePercentage > 20 ? 'bg-red-100' : 'bg-green-100'
-          }`}>
-            {avgOverduePercentage > 20 ? (
-              <AlertCircle className="w-4 h-4 text-red-700" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-green-700" />
-            )}
-            <span className={`text-label-medium font-medium ${
-              avgOverduePercentage > 20 ? 'text-red-700' : 'text-green-700'
+          <div className="relative group">
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full cursor-help ${
+              avgOverduePercentage > 20 ? 'bg-red-100' : 'bg-green-100'
             }`}>
-              {avgOverduePercentage.toFixed(1)}% Vencido
-            </span>
+              {avgOverduePercentage > 20 ? (
+                <AlertCircle className="w-4 h-4 text-red-700" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-green-700" />
+              )}
+              <span className={`text-label-medium font-medium ${
+                avgOverduePercentage > 20 ? 'text-red-700' : 'text-green-700'
+              }`}>
+                {avgOverduePercentage.toFixed(1)}% Vencido
+              </span>
+            </div>
+            <div className="absolute right-0 top-full mt-2 w-72 bg-surface-container-highest border border-outline-variant rounded-lg p-3 shadow-elevation-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <p className="text-body-small text-on-surface font-medium mb-1">
+                {avgOverduePercentage > 20 ? '⚠️ Cartera en riesgo' : '✅ Cartera saludable'}
+              </p>
+              <p className="text-body-small text-on-surface-variant">
+                Del total de la cartera, el{' '}
+                <span className={`font-semibold ${avgOverduePercentage > 20 ? 'text-red-700' : 'text-green-700'}`}>
+                  {avgOverduePercentage.toFixed(1)}%
+                </span>{' '}
+                corresponde a saldo vencido ({formatCurrency(totalOverdue)}) de un total de {formatCurrency(totalPortfolio)}.
+                {avgOverduePercentage > 20
+                  ? ' Se recomienda revisar las cuentas con mayor antigüedad.'
+                  : ' La cartera se encuentra dentro de parámetros aceptables.'}
+              </p>
+            </div>
           </div>
         </div>
       </CardHeader>
