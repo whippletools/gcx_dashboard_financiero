@@ -6,8 +6,6 @@
   # Máximo timeout permitido (10s free tier, 26s Pro)
   external_node_modules = ["buffer"]
   node_bundler = "esbuild"
-  # Aumentar memoria para procesamiento de datos
-  memory = 1024
  
 [[headers]]
   for = "/api/*"
@@ -27,4 +25,3 @@
   for = "/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-    
