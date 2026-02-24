@@ -125,19 +125,33 @@ export function CollectionTrendChart({
               {formatCurrency(currentYearTotal)}
             </p>
           </div>
-          <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${
-            isPositiveTrend ? 'bg-green-100' : 'bg-red-100'
-          }`}>
-            {isPositiveTrend ? (
-              <TrendingUp className="w-4 h-4 text-green-700" />
-            ) : (
-              <TrendingDown className="w-4 h-4 text-red-700" />
-            )}
-            <span className={`text-label-medium font-medium ${
-              isPositiveTrend ? 'text-green-700' : 'text-red-700'
+          <div className="relative group">
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full cursor-help ${
+              isPositiveTrend ? 'bg-green-100' : 'bg-red-100'
             }`}>
-              {Math.abs(percentageChange).toFixed(1)}%
-            </span>
+              {isPositiveTrend ? (
+                <TrendingUp className="w-4 h-4 text-green-700" />
+              ) : (
+                <TrendingDown className="w-4 h-4 text-red-700" />
+              )}
+              <span className={`text-label-medium font-medium ${
+                isPositiveTrend ? 'text-green-700' : 'text-red-700'
+              }`}>
+                {Math.abs(percentageChange).toFixed(1)}%
+              </span>
+            </div>
+            <div className="absolute right-0 top-full mt-2 w-64 bg-surface-container-highest border border-outline-variant rounded-lg p-3 shadow-elevation-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <p className="text-body-small text-on-surface font-medium mb-1">
+                {isPositiveTrend ? '📈 Incremento' : '📉 Disminución'} vs Año Anterior
+              </p>
+              <p className="text-body-small text-on-surface-variant">
+                El cobrado del año actual ({formatCurrency(currentYearTotal)}) es{' '}
+                <span className={`font-semibold ${isPositiveTrend ? 'text-green-700' : 'text-red-700'}`}>
+                  {Math.abs(percentageChange).toFixed(1)}% {isPositiveTrend ? 'mayor' : 'menor'}
+                </span>{' '}
+                que el año anterior ({formatCurrency(previousYearTotal)}).
+              </p>
+            </div>
           </div>
         </div>
       </CardHeader>

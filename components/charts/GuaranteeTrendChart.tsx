@@ -82,13 +82,30 @@ export function GuaranteeTrendChart({
             <span className="text-xs text-on-surface-variant bg-gray-100 px-2 py-1 rounded-full whitespace-nowrap">
               45 días vencido
             </span>
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
-              avgOverduePct > 20 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-            }`}>
-              {avgOverduePct > 20
-                ? <AlertCircle className="w-3.5 h-3.5" />
-                : <CheckCircle2 className="w-3.5 h-3.5" />}
-              {avgOverduePct.toFixed(1)}% Vencido
+            <div className="relative group">
+              <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap cursor-help ${
+                avgOverduePct > 20 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+              }`}>
+                {avgOverduePct > 20
+                  ? <AlertCircle className="w-3.5 h-3.5" />
+                  : <CheckCircle2 className="w-3.5 h-3.5" />}
+                {avgOverduePct.toFixed(1)}% Vencido
+              </div>
+              <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-lg p-3 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <p className="text-xs text-gray-800 font-medium mb-1">
+                  {avgOverduePct > 20 ? '⚠️ Garantías en riesgo' : '✅ Garantías saludables'}
+                </p>
+                <p className="text-xs text-gray-600">
+                  Del total de garantías, el{' '}
+                  <span className={`font-semibold ${avgOverduePct > 20 ? 'text-red-700' : 'text-green-700'}`}>
+                    {avgOverduePct.toFixed(1)}%
+                  </span>{' '}
+                  corresponde a garantías vencidas ({formatCurrency(totalOverdue)}) con más de 45 días, de un total de {formatCurrency(totalPortfolio)}.
+                  {avgOverduePct > 20
+                    ? ' Se recomienda dar seguimiento a las garantías con mayor antigüedad.'
+                    : ' Las garantías se encuentran dentro de parámetros aceptables.'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
