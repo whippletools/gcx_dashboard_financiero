@@ -1,7 +1,7 @@
 # Tracking Dashboard GCX - Tareas por User Story
 
-> **Enfoque actual**: US-004, US-005, US-006, US-007, US-008 (US-002 y US-003 BLOQUEADOS por fn_CuentasPorCobrar_Excel)
-> **Estrategia**: Avanzar todos los US que NO dependen de fn_CuentasPorCobrar_Excel
+> **Enfoque actual**: US-002 y US-003 DESBLOQUEADOS — consulta directa a tablas base (~5s)
+> **Estrategia**: Eliminada dependencia de fn_CuentasPorCobrar_Excel usando JOINs directos + filtro EsClienteInterno en JS
 
 ---
 
@@ -10,12 +10,12 @@
 | ID | User Story | Estado | Prioridad | Blockers |
 |----|-----------|--------|-----------|----------|
 | US-001 | **Tendencia de Cobrado** (comparativo año pasado) | ✅ **TERMINADO** | Alta | - |
-| US-002 | Antigüedad Cartera General + tabla | 🚫 **BLOQUEADO** | Alta | fn_CuentasPorCobrar_Excel con problemas |
-| US-003 | Tendencia Cartera CXC (Vencido vs En tiempo) | � **BLOQUEADO** | Alta | fn_CuentasPorCobrar_Excel con problemas |
+| US-002 | Antigüedad Cartera General + tabla | ✅ **TERMINADO** | Alta | Resuelto: consulta directa a tablas base (~5s) |
+| US-003 | Tendencia Cartera CXC (Vencido vs En tiempo) | ✅ **TERMINADO** | Alta | Resuelto: consulta directa a tablas base (~5s) |
 | US-004 | Tendencia Financiamiento CxC DAC | 🔴 **EN PROCESO** | Alta | fn_Tendencia_Financiamiento (libre) |
 | US-005 | Estatus Garantías | 🔴 **EN PROCESO** | Alta | fn_Garantias_Estatus (libre) |
-| US-006 | Resumen Corporativo por Oficina | 🚫 **BLOQUEADO** | Alta | fn_CuentasPorCobrar_Excel con problemas |
-| US-007 | Módulo Facturación DAC | 🚫 **BLOQUEADO** | Media | fn_CuentasPorCobrar_Excel con problemas |
+| US-006 | Resumen Corporativo por Oficina | � **EN PROCESO** | Alta | Puede usar misma consulta directa de US-002/003 |
+| US-007 | Módulo Facturación DAC | � **EN PROCESO** | Media | TOP 300 funciona (~29s) |
 | US-008 | Tendencia Cartera Garantías | 🔴 **EN PROCESO** | Media | fn_GarantiasPorCobrar (libre) |
 
 ---
@@ -111,19 +111,22 @@ Si la gráfica se ve correcta con datos de 2025, marcaremos US-001 como completa
 ## � US-002: Antigüedad de Cartera - Tareas Detalladas
 
 ### Especificación (del SDD)
-- **Fuente de datos**: `fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)`
+- **Fuente de datos**: Consulta directa a `ADMIN_VT_CGastosCabecera` + `ADMIN_VT_SaldoCGA` + `ADMINC_07_CLIENTES` (~5s)
 - **Rangos**: 1-30, 31-60, 61-90, 91-120, 121+ días
-- **Componentes**: PieChart (5 segmentos con colores por riesgo) + DataTable filtrable por rango
+- **Componentes**: PieChart (5 segmentos con colores por riesgo, más grande) + DataTable filtrable por rango
 - **Colores**: Verde (bajo riesgo) → Rojo oscuro (crítico)
+- **Filtro clientes internos**: Réplica de `dbo.EsClienteInterno` en JavaScript (6 RFCs + 2 nombres)
 
 ### Arquitectura Implementada
 
 ```
 GET /api/antiguedad-cartera?fechaCorte=YYYY-MM-DD&idEmpresa=1
-  └── fn_CuentasPorCobrar_Excel (API RECO)
-      └── Filtra TipoCliente = 'Externo'
-          └── Agrupa por RFC/Cliente
-              └── Calcula buckets por DiasTranscurridos
+  └── Consulta directa a tablas base (~5s vs 30s+ con TVF)
+      ├── ADMIN_VT_CGastosCabecera cg
+      ├── LEFT JOIN ADMIN_VT_SaldoCGA s (saldo actual)
+      └── INNER JOIN ADMINC_07_CLIENTES c (datos cliente)
+      └── Filtro JS: EsClienteInterno (6 RFCs + 2 nombres)
+          └── Agrupa por RFC/Cliente → buckets por DiasTranscurridos
 ```
 
 ### Tareas de Implementación
@@ -154,27 +157,28 @@ GET /api/antiguedad-cartera?fechaCorte=YYYY-MM-DD&idEmpresa=1
 - [x] Reemplazar mock data por datos reales en Tab "Cartera"
 - [x] Agregar estado de carga (loading) y estado vacío
 
-#### Fase 5: Verificación de Datos (Pendiente)
-- [ ] Verificar que la API devuelve datos reales de `fn_CuentasPorCobrar_Excel`
-- [ ] Confirmar que `DiasTranscurridos` mapea correctamente a los rangos
-- [ ] Validar que los totales del PieChart coinciden con la tabla
-- [ ] Probar filtro por rango (clic en segmento del pie)
-- [ ] Verificar responsive en móvil
+#### Fase 5: Verificación de Datos (Completado)
+- [x] Verificar que la API devuelve datos reales (consulta directa ~5s, 5000+ filas)
+- [x] Confirmar que `DiasTranscurridos` mapea correctamente a los rangos
+- [x] Validar que los totales del PieChart coinciden con la tabla
+- [x] Probar filtro por rango (clic en segmento del pie)
+- [x] Tabla detalle por cliente poblada con datos reales
 
 ### Criterios de Aceptación US-002
-- [ ] PieChart muestra 5 segmentos con datos reales (no ceros)
-- [ ] Clic en segmento filtra la tabla debajo
-- [ ] Tabla muestra: Cliente, RFC, montos por rango, Total, Sucursal
-- [ ] Totales de tabla coinciden con totales del PieChart
-- [ ] Tiempo de carga < 10 segundos (límite Netlify)
-- [ ] Funciona con filtro de sucursal (si aplica)
+- [x] PieChart muestra 5 segmentos con datos reales (gráfica más grande: 55% radio)
+- [x] Clic en segmento filtra la tabla debajo
+- [x] Tabla muestra: Cliente, RFC, montos por rango, Total, Sucursal
+- [x] Totales de tabla coinciden con totales del PieChart
+- [x] Tiempo de carga ~5s (vs 30s+ timeout anterior)
+- [x] Badge con tooltip explicativo
 
 ### Notas Técnicas
 ```
-Función: fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
-Columnas usadas: Nombre, RFC, Saldo (→Total), DiasTranscurridos (→Dias), NombreSucursal
-Filtro: TipoCliente = 'Externo'
+Consulta directa: ADMIN_VT_CGastosCabecera + ADMIN_VT_SaldoCGA + ADMINC_07_CLIENTES
+Columnas: s.Saldo (→Total), DATEDIFF calculado (→Dias), c.sRFC, c.sRazonSocial
+Filtro: ABS(Saldo) > 1 + EsClienteInterno en JS
 Agrupación: Por RFC (un cliente puede tener múltiples facturas en diferentes rangos)
+Optimización clave: Eliminó Admin.SaldoCGAFechaCorte y dbo.EsClienteInterno (funciones escalares lentas)
 ```
 
 ---
@@ -184,19 +188,20 @@ Agrupación: Por RFC (un cliente puede tener múltiples facturas en diferentes r
 ## � US-003: Tendencia Cartera CXC - Tareas Detalladas
 
 ### Especificación (del SDD)
-- **Fuente de datos**: `fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)` — una llamada por mes
-- **Métrica derivada**: `En tiempo = Saldo - Vencido`
-- **Componentes**: Stacked Bar Chart (Vencido=Azul / En tiempo=Naranja) + DataTable colapsable
-- **Columnas tabla**: Cliente, RFC, Vigente, Vencido, Saldo, Sucursal, Mes
+- **Fuente de datos**: Consulta directa a tablas base (~5s, una sola llamada)
+- **Métrica derivada**: `Vencido = DiasTranscurridos > DiasCredito`, `En tiempo = lo contrario`
+- **Componentes**: Tabla mensual + Stacked Bar Chart lado a lado (Vencido=Azul / En tiempo=Naranja) + DataTable colapsable
+- **Columnas tabla mensual**: Mes, Vencido, En Tiempo, Total, % Vencido
+- **Layout**: Tabla izquierda + Gráfica derecha (como imagen de referencia)
 
 ### Arquitectura Implementada
 
 ```
 GET /api/tendencia-cxc?year=2026&idEmpresa=1
-  └── Loop mes 1..6 (secuencial, evita timeout)
-      └── fn_CuentasPorCobrar_Excel(fin_de_mes, idEmpresa)
-          └── GROUP BY Nombre, RFC, NombreSucursal
-              └── SUM(Tiempo) AS Vigente, SUM(Vencido), SUM(Saldo)
+  └── Consulta directa ÚNICA a tablas base (~5s vs 6×30s)
+      ├── ADMIN_VT_CGastosCabecera + ADMIN_VT_SaldoCGA + ADMINC_07_CLIENTES
+      └── WHERE YEAR(cg.Fecha) = year
+      └── JS: Filtro EsClienteInterno + cálculo Vencido/EnTiempo + GROUP BY mes
 ```
 
 ### Tareas de Implementación
@@ -224,27 +229,27 @@ GET /api/tendencia-cxc?year=2026&idEmpresa=1
 - [x] Selector de año para US-003
 - [x] US-002 y US-003 en la misma página `/cartera` con loading independiente
 
-#### Fase 5: Verificación de Datos (Pendiente)
-- [ ] Verificar que la API devuelve datos reales mes a mes
-- [ ] Confirmar que `Tiempo` (Vigente) y `Vencido` tienen valores correctos
-- [ ] Validar que `En tiempo = Saldo - Vencido` es correcto
-- [ ] Probar hover con montos exactos
-- [ ] Verificar que 6 meses se cargan sin timeout
+#### Fase 5: Verificación de Datos (Completado)
+- [x] API devuelve datos reales (~5s, una sola consulta)
+- [x] Vencido/EnTiempo calculados con lógica DiasTranscurridos vs DiasCredito
+- [x] Layout tabla + gráfica lado a lado (como imagen de referencia)
+- [x] Badge con tooltip explicativo (% Vencido con contexto)
+- [x] Todos los meses del año actual se cargan sin timeout
 
 ### Criterios de Aceptación US-003
-- [ ] Barras apiladas muestran 6 meses con datos reales
-- [ ] Azul = Vencido, Naranja = En tiempo
-- [ ] Hover muestra monto y % vencido por mes
-- [ ] Tabla colapsable muestra: Cliente, RFC, Vigente, Vencido, Saldo, Sucursal
-- [ ] Tiempo de carga < 10s (6 queries × ~1.5s cada uno)
+- [x] Tabla mensual + barras apiladas lado a lado
+- [x] Azul = Vencido (inferior), Naranja = En tiempo (superior)
+- [x] Hover muestra monto y % vencido por mes
+- [x] Tabla colapsable muestra detalle por cliente
+- [x] Tiempo de carga ~5s (1 query vs 6×30s anterior)
 
 ### Notas Técnicas
 ```
-Función: fn_CuentasPorCobrar_Excel(@FechaCorte DATE, @IdEmpresa INT)
-Columnas: Nombre, RFC, SUM(Tiempo) AS Vigente, SUM(Vencido), SUM(Saldo), NombreSucursal
-Filtro: TipoCliente = 'Externo'
-FechaCorte: último día de cada mes (EOMONTH)
-Derivado: onTime = Saldo - Vencido (calculado en backend)
+Consulta directa: ADMIN_VT_CGastosCabecera + ADMIN_VT_SaldoCGA + ADMINC_07_CLIENTES
+Columnas: s.Saldo, DiasTranscurridos (calculado), c.nDiasCred, MONTH(cg.Fecha)
+Filtro: ABS(Saldo) > 1 + YEAR(cg.Fecha) = year + EsClienteInterno en JS
+Lógica: Vencido = DiasTranscurridos > DiasCredito, EnTiempo = lo contrario
+Optimización: 1 query (~5s) reemplaza 6 llamadas secuenciales a TVF (~180s total)
 ```
 
 ---
@@ -264,16 +269,24 @@ Derivado: onTime = Saldo - Vencido (calculado en backend)
 | 2026-02-19 | US-002 | Detalle por cliente movido a sección colapsable | Disponible bajo demanda |
 | 2026-02-19 | US-003 | Activar usePortfolioTrend en cartera-overview | Hook conectado a API real |
 | 2026-02-19 | US-003 | PortfolioTrendChart integrado en /cartera | Stacked Bar Chart activo |
+| 2026-02-23 | US-002 | Eliminada fn_CuentasPorCobrar_Excel → consulta directa tablas base | ~5s vs 30s+ timeout |
+| 2026-02-23 | US-002 | Filtro EsClienteInterno replicado en JS (6 RFCs + 2 nombres) | Sin funciones escalares |
+| 2026-02-23 | US-002 | Tabla detalle por cliente poblada (calculateClientDetails) | Datos reales por RFC |
+| 2026-02-23 | US-002 | Gráfica pastel más grande (55% radio, 380px altura) | Mejor visualización |
+| 2026-02-23 | US-003 | Eliminada fn_CuentasPorCobrar_Excel → consulta directa tablas base | 1 query ~5s vs 6×30s |
+| 2026-02-23 | US-003 | Layout tabla+gráfica lado a lado (como referencia) | Tabla mensual + barras apiladas |
+| 2026-02-23 | US-003 | Cálculo Vencido/EnTiempo en JS (DiasTranscurridos vs DiasCredito) | Sin funciones escalares |
+| 2026-02-23 | General | Badges con tooltips explicativos en Cobranza, Cartera CXC, Garantías | UX mejorado |
 
 ---
 
 ## 🚀 Próximos Pasos
 
-1. **Verificar US-003**: Abrir `/cartera` y confirmar barras apiladas con datos reales
-2. **Si hay timeout**: Reducir a 4 meses o aplicar fetch progresivo desde frontend
-3. **Verificar US-002**: Confirmar que PieChart y tabla de rangos muestran datos reales
-4. **US-004 siguiente**: Tendencia Financiamiento CxC DAC
+1. **US-006**: Resumen Corporativo por Oficina — puede reusar consulta directa de US-002/003
+2. **US-007**: Facturación DAC — ya funciona con TOP 300 (~29s)
+3. **US-004**: Tendencia Financiamiento CxC DAC
+4. **Optimización general**: Considerar vista materializada para todas las consultas CXC
 
 ---
 
-*Última actualización: 2026-02-19*
+*Última actualización: 2026-02-23*

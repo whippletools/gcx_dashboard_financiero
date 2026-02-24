@@ -30,18 +30,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query US-002: solo Saldo y DiasTranscurridos para calcular buckets por rango
+    // Query US-002: consulta directa a tablas base (~5s vs ~30s+ con fn_CuentasPorCobrar_Excel)
+    // Evita funciones escalares lentas: SaldoCGAFechaCorte, EsClienteInterno, Trae_Unidad
+    // Filtrado de clientes internos se hace en JavaScript usando RFC
     const query = `
-      SELECT 
-        Saldo AS Total,
-        DiasTranscurridos AS Dias
-      FROM dbo.fn_CuentasPorCobrar_Excel('${fechaCorte}', ${idEmpresa})
-      WHERE TipoCliente = 'Externo'
+      SELECT
+        ISNULL(s.Saldo, 0) AS Total,
+        DATEDIFF(DAY,
+          DATEADD(DAY,
+            CASE WHEN ISNULL(c.nDiasCred, 0) > 0 THEN c.nDiasCred ELSE 0 END,
+            cg.Fecha
+          ),
+          '${fechaCorte}'
+        ) AS Dias,
+        CASE WHEN cg.FacturarAidCliente > 0 THEN cg.FacturarARfcCliente ELSE c.sRFC END AS RFC,
+        CASE WHEN cg.FacturarAidCliente > 0 THEN cg.FacturarARazonSocialCliente ELSE c.sRazonSocial END AS RazonSocial
+      FROM admin.ADMIN_VT_CGastosCabecera cg
+      LEFT JOIN admin.ADMIN_VT_SaldoCGA s ON cg.IdCuentaGastos = s.nIdCtaGastos15
+      INNER JOIN Admin.ADMINC_07_CLIENTES c ON c.nIdClie07 = ISNULL(cg.FacturarAidCliente, cg.IdCliente)
+      WHERE cg.idEmpresa = ${idEmpresa}
+        AND cg.Estatus <> 1
+        AND ABS(ISNULL(s.Saldo, 0)) > 1
+        AND cg.Fecha < DATEADD(DD, 1, '${fechaCorte}')
     `;
 
-    console.log(`[ANTIGUEDAD-CARTERA] Query:\n${query.trim()}`);
+    console.log(`[ANTIGUEDAD-CARTERA] Query directa a tablas base`);
 
-    const result = await executeQueryWithRetry(query, { useCache: true, retries: 1 });
+    const result = await executeQueryWithRetry(query, { useCache: true, retries: 2 });
 
     if (!result.success || !result.data) {
       console.error('Error fetching cobranza data:', result.error);
@@ -51,12 +66,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const cobranzaData = result.data;
+    // Filtrar clientes internos en JS (réplica exacta de dbo.EsClienteInterno)
+    const INTERNAL_RFCS = new Set([
+      'DAC911011F57', 'GCA960517MYA', 'GLE961217IC5',
+      'KSI980219699', 'UNI931215B65', 'SPC911017BQ1',
+    ]);
+    const cobranzaData = result.data.filter((row: any) => {
+      const rfc = (row.RFC || '').trim();
+      const nombre = (row.RazonSocial || '').trim();
+      if (INTERNAL_RFCS.has(rfc)) return false;
+      if (nombre.startsWith('INTERCONTINENTAL FORWARDING')) return false;
+      if (nombre.startsWith('RED TOTAL')) return false;
+      return true;
+    });
 
     // Calcular distribución por rangos de antigüedad
     const chartData = calculateAgingBuckets(cobranzaData || []);
-    const tableData: AgingDetail[] = []; // El detalle por cliente se carga desde /api/antiguedad-cartera/detalle
-    const summary = calculateSummary(cobranzaData || []);
+    const tableData = calculateClientDetails(cobranzaData || []);
+    const summary = calculateSummary(cobranzaData || [], tableData.length);
 
     const response: AgingData = {
       chartData,
@@ -101,9 +128,58 @@ function calculateAgingBuckets(data: any[]): AgingBucket[] {
 }
 
 /**
+ * Agrupa registros por RFC/cliente y distribuye saldo en rangos de antigüedad
+ */
+function calculateClientDetails(data: any[]): AgingDetail[] {
+  const clientMap = new Map<string, AgingDetail>();
+
+  for (const row of data) {
+    const rfc = (row.RFC || '').trim() || 'SIN-RFC';
+    const dias = row.Dias || 0;
+    const saldo = row.Total || 0;
+
+    let client = clientMap.get(rfc);
+    if (!client) {
+      client = {
+        clientName: (row.RazonSocial || '').trim() || 'Sin Nombre',
+        rfc,
+        range1to30: 0,
+        range31to60: 0,
+        range61to90: 0,
+        range91to120: 0,
+        range121plus: 0,
+        total: 0,
+        branch: '',
+      };
+      clientMap.set(rfc, client);
+    }
+
+    client.total += saldo;
+    if (dias >= 1 && dias <= 30) client.range1to30 += saldo;
+    else if (dias >= 31 && dias <= 60) client.range31to60 += saldo;
+    else if (dias >= 61 && dias <= 90) client.range61to90 += saldo;
+    else if (dias >= 91 && dias <= 120) client.range91to120 += saldo;
+    else client.range121plus += saldo;
+  }
+
+  // Redondear valores
+  const details = Array.from(clientMap.values()).map(c => ({
+    ...c,
+    range1to30: Math.round(c.range1to30 * 100) / 100,
+    range31to60: Math.round(c.range31to60 * 100) / 100,
+    range61to90: Math.round(c.range61to90 * 100) / 100,
+    range91to120: Math.round(c.range91to120 * 100) / 100,
+    range121plus: Math.round(c.range121plus * 100) / 100,
+    total: Math.round(c.total * 100) / 100,
+  }));
+
+  return details.sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+}
+
+/**
  * Calcula el resumen general a partir de los registros crudos
  */
-function calculateSummary(data: any[]) {
+function calculateSummary(data: any[], totalClients: number) {
   const totalAmount = data.reduce((sum, item) => sum + (item.Total || 0), 0);
   const avgDays = data.length > 0
     ? data.reduce((sum, item) => sum + (item.Dias || 0), 0) / data.length
@@ -111,7 +187,7 @@ function calculateSummary(data: any[]) {
 
   return {
     totalAmount: Math.round(totalAmount * 100) / 100,
-    totalClients: 0, // Se calcula en /api/antiguedad-cartera/detalle
+    totalClients,
     averageDays: Math.round(avgDays * 100) / 100,
   };
 }

@@ -173,111 +173,167 @@ export function PortfolioTrendChart({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {/* Chart */}
-        <div className="h-[350px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-            >
-              <CartesianGrid 
-                strokeDasharray="4 4" 
-                stroke={chartAxisColors.grid}
-                vertical={false}
-              />
-              <XAxis 
-                dataKey="monthName"
-                axisLine={{ stroke: chartAxisColors.axis }}
-                tickLine={{ stroke: chartAxisColors.axis }}
-                tick={{ fill: chartAxisColors.tick, fontSize: 12 }}
-              />
-              <YAxis 
-                axisLine={{ stroke: chartAxisColors.axis }}
-                tickLine={{ stroke: chartAxisColors.axis }}
-                tick={{ fill: chartAxisColors.tick, fontSize: 12 }}
-                tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend 
-                verticalAlign="top"
-                align="right"
-                iconType="square"
-                wrapperStyle={{ paddingBottom: '20px' }}
-              />
-              <Bar
-                dataKey="overdue"
-                name="Vencido"
-                stackId="portfolio"
-                fill={trendSeriesColors.vencido}
-                radius={[0, 0, 4, 4]}
-              />
-              <Bar
-                dataKey="onTime"
-                name="En Tiempo"
-                stackId="portfolio"
-                fill={trendSeriesColors.enTiempo}
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+      <CardContent className="p-0 pb-4">
+        {/* Leyenda de colores */}
+        <div className="flex flex-wrap gap-3 px-3 sm:px-6 pt-2 mb-2 text-xs text-on-surface-variant">
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: trendSeriesColors.vencido }} />
+            Azul: Vencido (parte inferior)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: trendSeriesColors.enTiempo }} />
+            Naranja: En Tiempo (parte superior)
+          </span>
+          <span className="text-muted-foreground">Periodicidad: Mensual</span>
         </div>
 
-        {/* Toggle Table Button */}
-        <button
-          onClick={() => setShowTable(!showTable)}
-          className="mt-4 px-4 py-2 bg-primary-container text-on-primary-container rounded-full text-label-medium font-medium hover:bg-primary-container/80 transition-colors"
-        >
-          {showTable ? 'Ocultar Detalle' : 'Ver Detalle por Cliente'}
-        </button>
+        {/* Layout: Tabla mensual + Gráfica apilada lado a lado */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 px-2 sm:px-4">
 
-        {/* Detail Table */}
-        {showTable && (
-          <div className="mt-4">
-            <DataTable
-              data={data.tableData.slice(0, 100)}
-              columns={columns}
-              title="Detalle de Cartera por Cliente"
-              sortable
-              defaultSortColumn="total"
-              defaultSortDirection="desc"
-              maxHeight="400px"
-            />
+          {/* Tabla mensual */}
+          <div className="overflow-x-auto rounded-lg border border-outline-variant min-w-0">
+            <table className="w-full min-w-[380px] text-xs sm:text-sm">
+              <thead>
+                <tr className="bg-blue-700 text-white">
+                  <th className="text-left px-3 py-2 sm:px-4 sm:py-3 font-semibold sticky left-0 bg-blue-700 z-10">Mes</th>
+                  <th className="text-right px-3 py-2 sm:px-4 sm:py-3 font-semibold whitespace-nowrap">Vencido</th>
+                  <th className="text-right px-3 py-2 sm:px-4 sm:py-3 font-semibold whitespace-nowrap">En Tiempo</th>
+                  <th className="text-right px-3 py-2 sm:px-4 sm:py-3 font-semibold whitespace-nowrap">Total</th>
+                  <th className="text-right px-3 py-2 sm:px-4 sm:py-3 font-semibold">%</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant">
+                {data.months.map((m) => (
+                  <tr key={m.month} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-3 py-1.5 sm:px-4 sm:py-2 font-medium text-blue-700 sticky left-0 bg-white z-10 whitespace-nowrap">
+                      {m.monthName}
+                    </td>
+                    <td className="px-3 py-1.5 sm:px-4 sm:py-2 text-right font-mono whitespace-nowrap text-blue-700">
+                      {m.overdue > 0 ? formatCurrency(m.overdue) : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 sm:px-4 sm:py-2 text-right font-mono whitespace-nowrap text-orange-700">
+                      {m.onTime > 0 ? formatCurrency(m.onTime) : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 sm:px-4 sm:py-2 text-right font-mono font-semibold whitespace-nowrap">
+                      {m.total > 0 ? formatCurrency(m.total) : '—'}
+                    </td>
+                    <td className={`px-3 py-1.5 sm:px-4 sm:py-2 text-right font-bold ${
+                      m.overduePercentage > 20 ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      {m.total > 0 ? `${m.overduePercentage.toFixed(0)}%` : '—'}
+                    </td>
+                  </tr>
+                ))}
+                {/* Fila totales */}
+                <tr className="bg-blue-50 font-bold border-t-2 border-blue-300">
+                  <td className="px-3 py-2 sm:px-4 sticky left-0 bg-blue-50 z-10">Total</td>
+                  <td className="px-3 py-2 sm:px-4 text-right font-mono text-blue-700 whitespace-nowrap">{formatCurrency(totalOverdue)}</td>
+                  <td className="px-3 py-2 sm:px-4 text-right font-mono text-orange-700 whitespace-nowrap">{formatCurrency(totalPortfolio - totalOverdue)}</td>
+                  <td className="px-3 py-2 sm:px-4 text-right font-mono whitespace-nowrap">{formatCurrency(totalPortfolio)}</td>
+                  <td className={`px-3 py-2 sm:px-4 text-right font-bold ${
+                    avgOverduePercentage > 20 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {avgOverduePercentage.toFixed(0)}%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        )}
+
+          {/* Gráfica apilada */}
+          <div className="h-[260px] sm:h-[340px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                margin={{ top: 10, right: 8, left: 0, bottom: 20 }}
+              >
+                <CartesianGrid 
+                  strokeDasharray="4 4" 
+                  stroke={chartAxisColors.grid}
+                  vertical={false}
+                />
+                <XAxis 
+                  dataKey="monthName"
+                  axisLine={{ stroke: chartAxisColors.axis }}
+                  tickLine={false}
+                  tick={{ fill: chartAxisColors.tick, fontSize: 10 }}
+                />
+                <YAxis 
+                  axisLine={{ stroke: chartAxisColors.axis }}
+                  tickLine={false}
+                  tick={{ fill: chartAxisColors.tick, fontSize: 10 }}
+                  tickFormatter={(value) => `$${(value / 1000000).toFixed(0)}M`}
+                  width={38}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend 
+                  verticalAlign="top"
+                  iconType="square"
+                  iconSize={10}
+                  wrapperStyle={{ fontSize: '11px', paddingBottom: 6 }}
+                />
+                <Bar
+                  dataKey="overdue"
+                  name="Vencido"
+                  stackId="portfolio"
+                  fill={trendSeriesColors.vencido}
+                  radius={[0, 0, 3, 3]}
+                />
+                <Bar
+                  dataKey="onTime"
+                  name="En Tiempo"
+                  stackId="portfolio"
+                  fill={trendSeriesColors.enTiempo}
+                  radius={[3, 3, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Toggle Table Button - Detalle por cliente */}
+        <div className="mt-4 pt-4 border-t border-outline-variant mx-2 sm:mx-4">
+          <button
+            onClick={() => setShowTable(!showTable)}
+            className="px-4 py-2 bg-primary-container text-on-primary-container rounded-full text-xs sm:text-sm font-medium hover:bg-primary-container/80 transition-colors"
+          >
+            {showTable ? 'Ocultar Detalle' : 'Ver Detalle por Cliente'}
+          </button>
+
+          {/* Detail Table */}
+          {showTable && (
+            <div className="mt-4">
+              <DataTable
+                data={data.tableData.slice(0, 100)}
+                columns={columns}
+                title="Detalle de Cartera por Cliente"
+                sortable
+                defaultSortColumn="total"
+                defaultSortDirection="desc"
+                maxHeight="400px"
+              />
+            </div>
+          )}
+        </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-4 border-t border-outline-variant">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-outline-variant mx-2 sm:mx-4">
           <div className="text-center p-3 rounded-lg bg-blue-50">
-            <p className="text-label-medium text-blue-700">Total Vencido</p>
-            <p className="text-title-medium text-blue-900 font-semibold">
+            <p className="text-xs sm:text-label-medium text-blue-700">Total Vencido</p>
+            <p className="text-sm sm:text-title-medium text-blue-900 font-semibold">
               {formatCurrency(totalOverdue)}
             </p>
           </div>
           <div className="text-center p-3 rounded-lg bg-orange-50">
-            <p className="text-label-medium text-orange-700">Total En Tiempo</p>
-            <p className="text-title-medium text-orange-900 font-semibold">
+            <p className="text-xs sm:text-label-medium text-orange-700">Total En Tiempo</p>
+            <p className="text-sm sm:text-title-medium text-orange-900 font-semibold">
               {formatCurrency(totalPortfolio - totalOverdue)}
             </p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-surface-container-low">
-            <p className="text-label-medium text-on-surface-variant">Cartera Actual</p>
-            <p className="text-title-medium text-on-surface font-semibold">
+          <div className="text-center p-3 rounded-lg bg-gray-50">
+            <p className="text-xs sm:text-label-medium text-gray-600">Cartera Último Mes</p>
+            <p className="text-sm sm:text-title-medium text-gray-900 font-semibold">
               {formatCurrency(latestMonth?.total || 0)}
-            </p>
-          </div>
-          <div className={`text-center p-3 rounded-lg ${
-            (latestMonth?.overduePercentage || 0) > 20 ? 'bg-red-50' : 'bg-green-50'
-          }`}>
-            <p className={`text-label-medium ${
-              (latestMonth?.overduePercentage || 0) > 20 ? 'text-red-700' : 'text-green-700'
-            }`}>
-              % Vencido Actual
-            </p>
-            <p className={`text-title-medium font-semibold ${
-              (latestMonth?.overduePercentage || 0) > 20 ? 'text-red-900' : 'text-green-900'
-            }`}>
-              {formatPercentage(latestMonth?.overduePercentage || 0)}
             </p>
           </div>
         </div>
