@@ -101,8 +101,8 @@ export const trendSeriesColors = {
   enTiempo: '#FF9800',        // Orange-500
   
   // US-004: Financiamiento
-  porFacturar: '#9C27B0',     // Purple-500
-  facturado: '#009688',       // Teal-500
+  porFacturar: '#1565C0',     // Blue-800 (mismo tono que Vencido)
+  facturado: '#FF9800',       // Orange-500 (mismo tono que En Tiempo)
   
   // US-007: Facturación
   honorarios: '#2196F3',      // Blue-500
