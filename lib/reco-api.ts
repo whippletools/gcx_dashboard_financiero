@@ -126,7 +126,7 @@ export async function executeQueryWithRetry(
   query: string,
   options: { useCache?: boolean; retries?: number } = {}
 ): Promise<RecoQueryResult> {
-  const MAX_RETRIES = 2;
+  const MAX_RETRIES = 3;
   const { useCache = false, retries = MAX_RETRIES } = options;
   
   let lastError: string | undefined;

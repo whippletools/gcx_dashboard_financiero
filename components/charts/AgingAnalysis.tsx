@@ -166,14 +166,14 @@ export function AgingAnalysis({
           </div>
 
           {/* Pie Chart */}
-          <div className="h-[320px] sm:h-[380px]">
+          <div className="h-[400px] sm:h-[480px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={data.chartData}
                   cx="50%"
                   cy="45%"
-                  outerRadius="55%"
+                  outerRadius="70%"
                   dataKey="amount"
                   nameKey="range"
                   onClick={(entry) => setSelectedRange(selectedRange === entry.range ? null : entry.range as AgingRange)}
